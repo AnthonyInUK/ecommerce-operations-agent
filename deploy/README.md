@@ -6,7 +6,6 @@ This is the first production-oriented deployment shape for the ecommerce analysi
 
 - Spring Boot app on `SERVER_PORT`, default `18080`
 - React operations console: `/agent-console/`
-- Legacy analysis trace page: `/ecommerce-analysis-trace.html`
 - Health check: `/actuator/health`
 - GMV anomaly trigger endpoint: `/api/ecommerce/triggers/gmv-drop-watch/run-once`
 - File-based H2 by default, mounted under `/app/data`

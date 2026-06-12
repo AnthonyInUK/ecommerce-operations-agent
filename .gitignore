@@ -58,3 +58,7 @@ assistant-agent-start/src/main/resources/static/agent-console/
 *.csv
 __pycache__/
 *.pyc
+
+# Local drafts / generated comparison reports
+BLOG*.md
+model_comparison*.md

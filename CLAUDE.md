@@ -1,1 +1,0 @@
-- Always respond to the user in Simplified Chinese, regardless of the language of tool outputs or underlying system logs.

@@ -34,7 +34,7 @@
 打开页面：
 
 ```text
-http://localhost:18080/ecommerce-analysis-trace.html
+http://localhost:18080/agent-console/index.html
 ```
 
 点击 **运行 GMV 异常巡检**，页面会调用：
@@ -381,10 +381,6 @@ public class MyKnowledgeSearchProvider implements SearchProvider {
 
 - [完整配置参考](assistant-agent-start/src/main/resources/application-reference.yml)
 - [Spring AI Alibaba 文档](https://github.com/alibaba/spring-ai-alibaba)
-
-## 🤝 贡献
-
-欢迎贡献！请参阅 [CONTRIBUTING.md](CONTRIBUTING.md) 了解指南。
 
 ## 📄 许可证
 

@@ -406,10 +406,6 @@ For detailed documentation on each module, please visit our [Documentation Site]
 - [Full Configuration Reference](assistant-agent-start/src/main/resources/application-reference.yml)
 - [Spring AI Alibaba Documentation](https://github.com/alibaba/spring-ai-alibaba)
 
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
 ## 📄 License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.

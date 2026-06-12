@@ -68,11 +68,11 @@ public class AssistantAgentApplication {
             String contextPath = environment.getProperty("server.servlet.context-path", "");
             String accessUrl = "http://localhost:" + port + contextPath + "/chatui/index.html";
             String consoleUrl = "http://localhost:" + port + contextPath + "/exp-console/";
-            String analysisTraceUrl = "http://localhost:" + port + contextPath + "/ecommerce-analysis-trace.html";
+            String analysisConsoleUrl = "http://localhost:" + port + contextPath + "/agent-console/index.html";
             System.out.println("\n🎉========================================🎉");
             System.out.println("✅ Assistant Agent (Full Example) is ready!");
             System.out.println("🚀 Chat with your agent: " + accessUrl);
-            System.out.println("🧭 Analysis trace demo: " + analysisTraceUrl);
+            System.out.println("🧭 Ecommerce operations console: " + analysisConsoleUrl);
             System.out.println("🛠️ Experience console: " + consoleUrl);
             System.out.println("📚 Ecommerce experiences and demo warehouse ready");
             System.out.println("🎉========================================🎉\n");
