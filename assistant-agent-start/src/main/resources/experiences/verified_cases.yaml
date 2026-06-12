@@ -1,0 +1,154 @@
+cases:
+  - id: vc_overview_gmv_yesterday
+    analysis_space: overview
+    path_type: fast
+    target_role: "运营负责人"
+    benchmark_reference: "阿里式：业务到分析结论链路慢"
+    framework_capabilities: ["Experience", "FastIntent", "GmvQueryTool", "report_template"]
+    user_question: "昨天 GMV 多少？"
+    business_intent: "早盘高频看数，快速确认昨天整体交易盘子。"
+    expected_slots:
+      metric: "gmv"
+      time_window: "yesterday"
+    expected_tool_chain:
+      - "TimeParserTool"
+      - "GmvQueryTool"
+      - "StatsTool"
+    expected_answer_shape:
+      - "核心指标值"
+      - "环比说明"
+      - "一句业务结论"
+
+  - id: vc_overview_region_compare
+    analysis_space: overview
+    path_type: fast
+    target_role: "区域负责人"
+    benchmark_reference: "阿里式：跨团队大盘协同需要统一看数口径"
+    framework_capabilities: ["Experience", "FastIntent", "RegionPerformanceQueryTool", "ChartTool"]
+    user_question: "上周华东和华南哪个区域表现更差？"
+    business_intent: "区域负责人快速判断哪个大区需要优先复盘。"
+    expected_slots:
+      metric: "gmv"
+      time_window: "last_week"
+      dimensions: ["region"]
+    expected_tool_chain:
+      - "TimeParserTool"
+      - "GmvQueryTool"
+      - "StatsTool"
+      - "ChartTool"
+    expected_answer_shape:
+      - "区域对比"
+      - "差值/跌幅"
+      - "优先关注区域"
+
+  - id: vc_root_cause_east_drop
+    analysis_space: overview
+    path_type: deep
+    target_role: "数据分析师 / 运营经理"
+    benchmark_reference: "京东式：标准问数之外需要多步归因"
+    framework_capabilities: ["REACT Experience", "FastIntent", "OrderQueryTool", "UserMetricTool", "CategoryRankTool", "FunnelAnalysisTool", "RefundAnalysisTool"]
+    user_question: "上周华东 GMV 为什么跌了？"
+    business_intent: "从现象走向归因，定位城市、品类、漏斗或退款问题。"
+    expected_slots:
+      metric: "gmv"
+      time_window: "last_week"
+      dimensions: ["region"]
+    expected_tool_chain:
+      - "TimeParserTool"
+      - "GmvQueryTool"
+      - "OrderQueryTool"
+      - "UserMetricTool"
+      - "CategoryRankTool"
+      - "FunnelAnalysisTool"
+      - "RefundAnalysisTool"
+      - "StatsTool"
+    expected_answer_shape:
+      - "异常确认"
+      - "用户规模判断"
+      - "订单结构判断"
+      - "主要拖累维度"
+      - "原因判断"
+      - "建议动作"
+
+  - id: vc_refund_top_category
+    analysis_space: refund
+    path_type: fast
+    target_role: "售后负责人"
+    benchmark_reference: "拼多多式：高频重复售后排查任务需要自动化"
+    framework_capabilities: ["Experience", "FastIntent", "RefundAnalysisTool", "ChartTool"]
+    user_question: "退款率最高的品类有哪些？"
+    business_intent: "售后团队快速锁定高风险品类。"
+    expected_slots:
+      metric: "refund_rate"
+      dimensions: ["category_l1"]
+    expected_tool_chain:
+      - "RefundAnalysisTool"
+      - "StatsTool"
+      - "ChartTool"
+    expected_answer_shape:
+      - "品类排名"
+      - "退款率"
+      - "是否异常"
+
+  - id: vc_growth_dau_yesterday
+    analysis_space: growth
+    path_type: fast
+    target_role: "增长负责人 / 运营负责人"
+    benchmark_reference: "拼多多式：重复看数任务需要自动化，先把用户规模问题答稳"
+    framework_capabilities: ["Experience", "FastIntent", "UserMetricTool", "semantic_model"]
+    user_question: "昨天 DAU 和活跃买家多少？"
+    business_intent: "快速确认昨日用户规模和买家活跃情况，判断交易变化是不是先从用户规模开始。"
+    expected_slots:
+      metric: "dau_active_buyer"
+      time_window: "yesterday"
+    expected_tool_chain:
+      - "TimeParserTool"
+      - "UserMetricTool"
+      - "StatsTool"
+    expected_answer_shape:
+      - "DAU"
+      - "活跃买家数"
+      - "一句用户规模结论"
+
+  - id: vc_growth_channel_conversion
+    analysis_space: growth
+    path_type: fast
+    target_role: "增长分析师 / 渠道运营"
+    benchmark_reference: "阿里式：业务侧需要自助判断哪个渠道质量更高"
+    framework_capabilities: ["Experience", "FastIntent", "UserMetricTool", "ChartTool"]
+    user_question: "哪个渠道转化更高？"
+    business_intent: "快速判断当前渠道质量，找出更值得继续投放或重点复盘的渠道。"
+    expected_slots:
+      metric: "conversion_rate"
+      dimensions: ["channel"]
+    expected_tool_chain:
+      - "TimeParserTool"
+      - "UserMetricTool"
+      - "StatsTool"
+      - "ChartTool"
+    expected_answer_shape:
+      - "渠道排名"
+      - "最高转化渠道"
+      - "一句渠道质量结论"
+
+  - id: vc_campaign_roi
+    analysis_space: campaign
+    path_type: deep
+    target_role: "活动运营 / 增长分析师"
+    benchmark_reference: "京东式：活动复盘不能停在问数，需要解释问题环节"
+    framework_capabilities: ["REACT Experience", "FunnelAnalysisTool", "RefundAnalysisTool", "StatsTool"]
+    user_question: "这次活动 ROI 怎么样，问题主要出在哪？"
+    business_intent: "活动复盘不仅要给 ROI，还要解释是流量、转化还是退款拖累。"
+    expected_slots:
+      metric: "roi"
+      dimensions: ["campaign", "channel", "category_l1"]
+    expected_tool_chain:
+      - "TimeParserTool"
+      - "GmvQueryTool"
+      - "FunnelAnalysisTool"
+      - "RefundAnalysisTool"
+      - "StatsTool"
+    expected_answer_shape:
+      - "ROI 结果"
+      - "核心问题环节"
+      - "后续优化建议"

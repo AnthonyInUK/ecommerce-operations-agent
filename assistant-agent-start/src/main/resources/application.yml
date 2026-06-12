@@ -11,6 +11,56 @@ spring:
 server:
   port: 8080
 
+assistant.agent.start:
+  demo-experiences:
+    enabled: false
+  ecommerce-experiences:
+    enabled: true
+
+app:
+  datasource:
+    enabled: true
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:assistant_agent;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    username: sa
+    password:
+    bootstrap-demo-data: true
+    bootstrap-olist-raw-schema: false
+    olist-raw-import-dir:
+    bootstrap-olist-analytics: false
+    prefer-olist-analytics: false
+    read-cache-enabled: true
+    read-cache-ttl-seconds: 120
+    read-cache-max-entries: 512
+    read-cache-cache-empty-results: false
+  operations:
+    daily-report:
+      enabled: false
+      cron: "0 0 8 * * *"
+      source-id: ecommerce-ops
+      created-by: system
+    gmv-drop-watch:
+      enabled: false
+      cron: "0 15 8 * * *"
+      source-id: ecommerce-ops
+      created-by: system
+      relative-drop-threshold: 0.15
+      week-over-week-drop-threshold: 0.15
+      rolling-average-window-days: 7
+      rolling-average-drop-threshold: 0.12
+      year-over-year-drop-threshold: 0.15
+      special-period-threshold-multiplier: 1.5
+      demo-report-date:
+      holiday-dates: []
+      activity-windows: []
+  reply:
+    feishu-webhook:
+    notification-dedup-enabled: true
+    notification-dedup-window-seconds: 1800
+    persistent-notification-dedup-enabled: true
+    notification-fallback-to-ide-log-enabled: true
+    feishu-webhook-timeout-seconds: 8
+
 # ============================================================================
 # DashScope Configuration
 # ============================================================================
@@ -34,6 +84,11 @@ spring.ai.alibaba.codeact.extension.experience:
     - send_notification
     - write_code
     - write_condition_code
+    - GmvQueryTool
+    - RegionPerformanceQueryTool
+    - CategoryRankTool
+    - RefundAnalysisTool
+    - FunnelAnalysisTool
   logging:
     enabled: true
 
@@ -106,6 +161,13 @@ spring.ai.alibaba.codeact.extension.prompt:
   enabled: true
   react:
     enabled: true
+
+spring.ai.alibaba.codeact.extension.trigger:
+  enabled: true
+  execution:
+    execution-timeout: 30000
+    default-max-retries: 1
+    default-retry-delay: 1000
 
 # ============================================================================
 # Logging - Debug level for development

@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电商经营异常分析</title>
+    <style>
+        :root {
+            --bg: #f5f1e8;
+            --panel: #fffaf1;
+            --ink: #1e2430;
+            --muted: #637081;
+            --line: #e5d8bf;
+            --accent: #a54b2a;
+            --accent-soft: #f5d9c8;
+            --ok: #2f7d5b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background:
+                radial-gradient(circle at top right, rgba(165, 75, 42, 0.08), transparent 30%),
+                linear-gradient(180deg, #f8f4ec 0%, var(--bg) 100%);
+            color: var(--ink);
+            font-family: "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+        }
+
+        .page {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 1.4fr 1fr;
+            gap: 20px;
+            align-items: stretch;
+            margin-bottom: 24px;
+        }
+
+        .panel {
+            background: rgba(255, 250, 241, 0.9);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            box-shadow: 0 16px 40px rgba(44, 52, 66, 0.08);
+            backdrop-filter: blur(8px);
+        }
+
+        .hero-main {
+            padding: 28px;
+        }
+
+        .hero-main h1 {
+            margin: 0 0 12px;
+            font-size: 38px;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+        }
+
+        .hero-main p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1.7;
+        }
+
+        .hero-side {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .hero-stat {
+            display: grid;
+            gap: 12px;
+        }
+
+        .hero-stat-item {
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid rgba(229, 216, 191, 0.9);
+        }
+
+        .hero-stat-item strong {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 8px;
+        }
+
+        .hero-stat-item span {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 20px;
+        }
+
+        .story-strip {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .story-step {
+            position: relative;
+            padding: 16px 16px 16px 52px;
+            border-radius: 18px;
+            background: rgba(255, 250, 241, 0.9);
+            border: 1px solid var(--line);
+            box-shadow: 0 10px 26px rgba(44, 52, 66, 0.05);
+        }
+
+        .story-step-index {
+            position: absolute;
+            left: 16px;
+            top: 16px;
+            width: 26px;
+            height: 26px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            background: var(--accent);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .story-step strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 15px;
+        }
+
+        .story-step span {
+            color: var(--muted);
+            line-height: 1.55;
+            font-size: 13px;
+        }
+
+        .query-panel,
+        .result-panel {
+            padding: 24px;
+        }
+
+        .section-title {
+            margin: 0 0 14px;
+            font-size: 20px;
+        }
+
+        .helper {
+            margin: 0 0 18px;
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        textarea,
+        input {
+            width: 100%;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--ink);
+            padding: 14px 16px;
+            font-size: 15px;
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .stack {
+            display: grid;
+            gap: 16px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 4px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 14px;
+            padding: 12px 18px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(44, 52, 66, 0.1);
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        textarea:focus-visible,
+        summary:focus-visible {
+            outline: 3px solid rgba(165, 75, 42, 0.24);
+            outline-offset: 3px;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.58;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .primary:hover:not(:disabled) {
+            background: #8f3f23;
+        }
+
+        .secondary {
+            background: #fff;
+            color: var(--ink);
+            border: 1px solid var(--line);
+        }
+
+        .secondary:hover:not(:disabled) {
+            border-color: rgba(165, 75, 42, 0.4);
+        }
+
+        .control-callout {
+            display: grid;
+            gap: 10px;
+            padding: 16px;
+            border-radius: 18px;
+            background:
+                linear-gradient(135deg, rgba(165, 75, 42, 0.12), rgba(47, 125, 91, 0.08)),
+                #fff;
+            border: 1px solid rgba(165, 75, 42, 0.18);
+        }
+
+        .control-callout strong {
+            font-size: 17px;
+        }
+
+        .control-callout span {
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 13px;
+        }
+
+        .control-callout .primary {
+            width: 100%;
+            padding: 14px 18px;
+            font-size: 16px;
+        }
+
+        .run-guide {
+            display: grid;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .run-guide-card {
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.68);
+            border: 1px dashed var(--line);
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 13px;
+        }
+
+        .run-guide-card b {
+            color: var(--ink);
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .chip {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #fff;
+            border: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .result-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .status {
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            background: rgba(47, 125, 91, 0.14);
+            color: var(--ok);
+        }
+
+        .answer-box {
+            padding: 18px;
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid var(--line);
+            line-height: 1.75;
+            font-size: 15px;
+            margin-bottom: 18px;
+        }
+
+        .summary-box {
+            padding: 22px 22px 18px;
+            border-radius: 18px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 248, 238, 0.96));
+            border: 1px solid var(--line);
+            margin-bottom: 18px;
+        }
+
+        .summary-box strong {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .summary-box p {
+            margin: 0;
+            line-height: 1.85;
+            font-size: 16px;
+        }
+
+        .demo-focus {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .demo-focus-card {
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.76);
+            border: 1px solid var(--line);
+        }
+
+        .demo-focus-card strong {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .demo-focus-card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.65;
+            font-size: 14px;
+        }
+
+        .insight-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .insight-card {
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid var(--line);
+        }
+
+        .insight-card strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .insight-card .value {
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 6px;
+        }
+
+        .insight-card .detail {
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .meta-card {
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid var(--line);
+        }
+
+        .meta-card strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .runtime-overview {
+            margin-bottom: 18px;
+        }
+
+        .runtime-overview .meta-card {
+            min-height: 104px;
+        }
+
+        .meta-value {
+            font-size: 18px;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+
+        .meta-detail {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .source-stack {
+            display: grid;
+            gap: 10px;
+        }
+
+        .source-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .source-row-label {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .source-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .source-pill.olist {
+            background: rgba(47, 125, 91, 0.12);
+            color: var(--ok);
+        }
+
+        .source-pill.demo {
+            background: rgba(165, 75, 42, 0.12);
+            color: var(--accent);
+        }
+
+        .source-pill.mixed {
+            background: rgba(99, 112, 129, 0.14);
+            color: #4d5a69;
+        }
+
+        .routing-list {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .cause-list {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .cause-card {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 14px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid var(--line);
+        }
+
+        .cause-rank {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-weight: 800;
+        }
+
+        .cause-card h4 {
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+
+        .cause-card p {
+            margin: 0 0 8px;
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        .cause-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .cause-badge {
+            display: inline-flex;
+            width: fit-content;
+            margin-bottom: 8px;
+            padding: 4px 9px;
+            border-radius: 999px;
+            background: rgba(47, 125, 91, 0.12);
+            color: var(--ok);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .cause-badge.signal {
+            background: rgba(165, 75, 42, 0.12);
+            color: var(--accent);
+        }
+
+        .cause-badge.insufficient {
+            background: rgba(99, 112, 129, 0.14);
+            color: #4d5a69;
+        }
+
+        .routing-card {
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid var(--line);
+        }
+
+        .routing-card strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+
+        .routing-card p {
+            margin: 0 0 8px;
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        .routing-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .notification-draft {
+            padding: 18px;
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid var(--line);
+            margin-bottom: 18px;
+        }
+
+        .notification-draft h4 {
+            margin: 0 0 10px;
+            font-size: 16px;
+        }
+
+        .notification-draft pre {
+            margin: 12px 0 0;
+            padding: 16px;
+            border-radius: 16px;
+            background: #201b17;
+            color: #f5efe5;
+            overflow: auto;
+            white-space: pre-wrap;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .notification-meta {
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        .drilldown-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 18px;
+            overflow: hidden;
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid var(--line);
+        }
+
+        .drilldown-table th,
+        .drilldown-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(229, 216, 191, 0.7);
+            text-align: left;
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+        .drilldown-table th {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            background: rgba(245, 217, 200, 0.28);
+        }
+
+        .confidence-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .confidence-row {
+            display: grid;
+            grid-template-columns: 100px 76px 1fr;
+            gap: 10px;
+            align-items: start;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .trace-list {
+            display: grid;
+            gap: 14px;
+        }
+
+        .trace-step {
+            position: relative;
+            padding: 18px 18px 18px 64px;
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid var(--line);
+        }
+
+        .trace-step-index {
+            position: absolute;
+            left: 18px;
+            top: 18px;
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .trace-step h4 {
+            margin: 0 0 8px;
+            font-size: 17px;
+        }
+
+        .trace-step p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        .trace-tags {
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px dashed var(--line);
+        }
+
+        .debug-panel {
+            margin-top: 18px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .debug-panel summary {
+            padding: 16px 18px;
+            cursor: pointer;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .advanced-settings {
+            margin-top: 4px;
+            border-radius: 16px;
+            border: 1px dashed var(--line);
+            background: rgba(255, 255, 255, 0.58);
+            overflow: hidden;
+        }
+
+        .advanced-settings summary {
+            padding: 12px 14px;
+            cursor: pointer;
+            color: var(--muted);
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .advanced-settings-content {
+            display: grid;
+            gap: 14px;
+            padding: 0 14px 14px;
+        }
+
+        .debug-content {
+            padding: 0 18px 18px;
+        }
+
+        .debug-content .meta-grid {
+            margin-bottom: 18px;
+        }
+
+        .trace-tags pre,
+        .facts-preview pre {
+            margin: 10px 0 0;
+            padding: 16px;
+            border-radius: 16px;
+            background: #201b17;
+            color: #f5efe5;
+            overflow: auto;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .facts-preview {
+            margin-top: 18px;
+        }
+
+        @media (max-width: 980px) {
+            .hero,
+            .layout,
+            .story-strip,
+            .demo-focus {
+                grid-template-columns: 1fr;
+            }
+
+            .insight-grid,
+            .meta-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <section class="hero">
+        <div class="panel hero-main">
+            <span class="eyebrow">经营异常分析工作流</span>
+            <h1>从“GMV 跌了”到“该谁处理、先查什么”</h1>
+            <p>
+                这个页面演示的是一条最小业务闭环：系统先发现经营异常，再自动跑 root cause，
+                最后把原因、证据、责任角色和通知草稿整理出来。技术链路仍然保留，但默认折叠在开发调试信息里。
+            </p>
+        </div>
+        <div class="panel hero-side">
+            <div>
+                <span class="eyebrow">当前默认演示问题</span>
+                <p class="helper" style="margin-top: 12px;">
+                    推荐先点“一键跑完整闭环”。它会模拟每天早上的自动巡检，不是等用户提问，而是主动发现异常并接上归因链。
+                </p>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-item">
+                    <strong>业务主线</strong>
+                    <span>异常 -> 归因 -> 分发</span>
+                </div>
+                <div class="hero-stat-item">
+                    <strong>最终交付</strong>
+                    <span>通知草稿</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="story-strip" aria-label="演示故事线">
+        <article class="story-step">
+            <div class="story-step-index">1</div>
+            <strong>发现异常</strong>
+            <span>GMV 巡检先判断华东是否真的明显下跌。</span>
+        </article>
+        <article class="story-step">
+            <div class="story-step-index">2</div>
+            <strong>拆解原因</strong>
+            <span>按区域、订单、用户、品类、漏斗、退款逐层排查。</span>
+        </article>
+        <article class="story-step">
+            <div class="story-step-index">3</div>
+            <strong>分发责任</strong>
+            <span>把不同信号分给平台、增长、类目、售后等角色。</span>
+        </article>
+        <article class="story-step">
+            <div class="story-step-index">4</div>
+            <strong>形成交付</strong>
+            <span>生成可复制到飞书/群聊/日报的通知草稿。</span>
+        </article>
+    </section>
+
+    <section class="layout">
+        <aside class="panel query-panel">
+            <h2 class="section-title">演示控制台</h2>
+            <p class="helper">
+                对外演示时优先跑“每日异常巡检”，它能一次展示发现异常、自动归因、责任分发和通知草稿。
+            </p>
+
+            <div class="stack">
+                <div class="control-callout">
+                    <strong>推荐演示：模拟每日 GMV 异常巡检</strong>
+                    <span>系统主动检查 2018-08-29 华东 GMV 异常，自动接上 root cause、责任分发和通知草稿。</span>
+                    <button class="primary" id="heroTriggerBtn" type="button">一键跑完整闭环</button>
+                </div>
+                <div>
+                    <label for="question">问题</label>
+                    <textarea id="question">2018-08-29 华东 GMV 为什么跌了？</textarea>
+                </div>
+                <div class="actions">
+                    <button class="secondary" id="runBtn">手动分析问题</button>
+                    <button class="primary" id="triggerBtn">每日异常巡检</button>
+                    <button class="secondary" id="demoBtn">重置演示问题</button>
+                </div>
+                <div class="run-guide">
+                    <div class="run-guide-card">
+                        <b>手动分析问题：</b>适合展示标准问数、多轮追问或 root cause 问答。
+                    </div>
+                    <div class="run-guide-card">
+                        <b>每日异常巡检：</b>适合展示“发现异常 -> 归因 -> 责任分发 -> 通知草稿”的完整闭环。
+                    </div>
+                </div>
+                <details class="advanced-settings">
+                    <summary>高级设置：Session / API 地址</summary>
+                    <div class="advanced-settings-content">
+                        <div>
+                            <label for="sessionId">Session ID</label>
+                            <input id="sessionId" value="demo-ui-session">
+                        </div>
+                        <div>
+                            <label for="apiBase">API Base URL</label>
+                            <input id="apiBase" value="">
+                        </div>
+                        <div class="helper" id="apiHint" style="margin: 0;">
+                            页面如果是通过 Spring Boot 打开的，会直接走同源接口；如果是通过 <code>file://</code> 打开的，请把 API 地址指到本地服务，比如 <code>http://localhost:18080</code>。
+                        </div>
+                    </div>
+                </details>
+                <div>
+                    <label>快捷问题</label>
+                    <div class="chips">
+                        <button class="chip quick-question" data-q="昨天 GMV 多少？">昨天 GMV 多少？</button>
+                        <button class="chip quick-question" data-q="昨天订单量多少，客单价怎么样？">订单量 / 客单价</button>
+                        <button class="chip quick-question" data-q="昨天 DAU 和活跃买家多少？">DAU / 活跃买家</button>
+                        <button class="chip quick-question" data-q="2018-08-29 华东 GMV 为什么跌了？">华东 root cause</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="panel result-panel">
+            <div class="result-head">
+                <div>
+                    <h2 class="section-title" style="margin-bottom: 6px;">分析结果</h2>
+                    <p class="helper" id="questionEcho">准备运行分析…</p>
+                </div>
+                <div class="status" id="statusBadge">等待执行</div>
+            </div>
+
+            <div class="summary-box" id="answerBox">
+                <strong>核心结论</strong>
+                <p>点击“手动分析问题”或“一键跑完整闭环”后，这里会展示系统返回的业务结论。</p>
+            </div>
+
+            <div class="demo-focus">
+                <article class="demo-focus-card">
+                    <strong>这页先看什么</strong>
+                    <p>先看核心结论和关键证据，确认系统有没有把 GMV 下跌拆到订单、用户、品类等业务维度。</p>
+                </article>
+                <article class="demo-focus-card">
+                    <strong>最后看什么</strong>
+                    <p>再看责任分发和通知草稿，确认分析结果能不能推动相关角色继续处理，而不是停在报数。</p>
+                </article>
+            </div>
+
+            <div class="meta-grid runtime-overview" id="runtimeOverviewGrid">
+                <div class="meta-card">
+                    <strong>路径类型</strong>
+                    <div class="meta-value">-</div>
+                    <div class="meta-detail">运行后展示 trigger / fast / deep 路径。</div>
+                </div>
+                <div class="meta-card">
+                    <strong>耗时</strong>
+                    <div class="meta-value">-</div>
+                    <div class="meta-detail">用于区分快路径问数和深路径归因成本。</div>
+                </div>
+                <div class="meta-card">
+                    <strong>数据来源</strong>
+                    <div class="meta-value">-</div>
+                    <div class="meta-detail">展示 Olist 公开数据和 demo 补齐口径。</div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="section-title" style="margin-bottom: 10px;">关键证据</h3>
+                <div class="insight-grid" id="insightGrid">
+                    <div class="insight-card">
+                        <strong>等待执行</strong>
+                        <div class="value">-</div>
+                        <div class="detail">运行 root cause 后，这里会把用户规模、订单结构、品类拖累、漏斗和退款拆成可扫读的卡片。</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="section-title">主要原因排序</h3>
+            <div class="cause-list" id="causeList">
+                <div class="helper">root cause 跑完后，这里会按异常信号强弱列出优先排查方向。</div>
+            </div>
+
+            <h3 class="section-title">责任分发</h3>
+            <div class="routing-list" id="routingList">
+                <div class="helper">root cause 跑完后，这里会显示哪些业务角色应该接手处理。</div>
+            </div>
+
+            <h3 class="section-title">通知草稿</h3>
+            <div id="notificationDraft" class="notification-draft">
+                <h4>等待生成</h4>
+                <div class="notification-meta">root cause 跑完后，这里会生成一条可复制到飞书/群聊/日报的正式通知文案。</div>
+            </div>
+
+            <h3 class="section-title">商品 / 商家下钻</h3>
+            <div id="drilldownBox">
+                <div class="helper">root cause 跑完后，这里会列出优先排查的商品和商家组合。</div>
+            </div>
+
+            <details class="debug-panel">
+                <summary>数据口径 / 可信度</summary>
+                <div class="debug-content">
+                    <div class="helper">这里说明哪些判断来自 Olist 公开数据，哪些仍然来自 demo 补齐口径，避免把混合数据讲成真实全量生产数据。</div>
+                    <div class="meta-card" style="margin-bottom: 12px;">
+                        <strong>数据来源</strong>
+                        <div id="dataSourceValue">-</div>
+                    </div>
+                    <div id="factsBox" class="trace-list"></div>
+                </div>
+            </details>
+
+            <details class="debug-panel">
+                <summary>开发调试信息</summary>
+                <div class="debug-content">
+                    <div class="meta-grid">
+                        <div class="meta-card">
+                            <strong>Path Type</strong>
+                            <div id="pathTypeValue">-</div>
+                        </div>
+                        <div class="meta-card">
+                            <strong>Tool Chain</strong>
+                            <div id="toolChainValue">-</div>
+                        </div>
+                        <div class="meta-card">
+                            <strong>Session</strong>
+                            <div id="sessionValue">-</div>
+                        </div>
+                    </div>
+                    <h3 class="section-title">分析判断链</h3>
+                    <div class="trace-list" id="traceList"></div>
+                </div>
+            </details>
+        </main>
+    </section>
+</div>
+
+<script>
+    const questionEl = document.getElementById("question");
+    const sessionEl = document.getElementById("sessionId");
+    const apiBaseEl = document.getElementById("apiBase");
+    const apiHintEl = document.getElementById("apiHint");
+    const runBtn = document.getElementById("runBtn");
+    const triggerBtn = document.getElementById("triggerBtn");
+    const heroTriggerBtn = document.getElementById("heroTriggerBtn");
+    const demoBtn = document.getElementById("demoBtn");
+    const statusBadge = document.getElementById("statusBadge");
+    const questionEcho = document.getElementById("questionEcho");
+    const answerBox = document.getElementById("answerBox");
+    const runtimeOverviewGrid = document.getElementById("runtimeOverviewGrid");
+    const insightGrid = document.getElementById("insightGrid");
+    const causeList = document.getElementById("causeList");
+    const pathTypeValue = document.getElementById("pathTypeValue");
+    const toolChainValue = document.getElementById("toolChainValue");
+    const sessionValue = document.getElementById("sessionValue");
+    const dataSourceValue = document.getElementById("dataSourceValue");
+    const routingList = document.getElementById("routingList");
+    const drilldownBox = document.getElementById("drilldownBox");
+    const notificationDraft = document.getElementById("notificationDraft");
+    const traceList = document.getElementById("traceList");
+    const factsBox = document.getElementById("factsBox");
+
+    initializeApiBase();
+
+    demoBtn.addEventListener("click", async () => {
+        const response = await fetch(`${resolveApiBase()}/api/ecommerce/demo-question`);
+        const data = await response.json();
+        sessionEl.value = data.session_id;
+        questionEl.value = data.question;
+    });
+
+    document.querySelectorAll(".quick-question").forEach(button => {
+        button.addEventListener("click", () => {
+            questionEl.value = button.dataset.q;
+        });
+    });
+
+    runBtn.addEventListener("click", runAnalysis);
+    triggerBtn.addEventListener("click", runTriggerWatch);
+    heroTriggerBtn.addEventListener("click", runTriggerWatch);
+
+    async function runAnalysis() {
+        const question = questionEl.value.trim();
+        const sessionId = sessionEl.value.trim() || "demo-ui-session";
+        if (!question) {
+            return;
+        }
+        const startedAt = performance.now();
+
+        runBtn.disabled = true;
+        triggerBtn.disabled = true;
+        heroTriggerBtn.disabled = true;
+        statusBadge.textContent = "执行中";
+        questionEcho.textContent = `问题：${question}`;
+        answerBox.innerHTML = `<strong>核心结论</strong><p>正在运行问答主链...</p>`;
+        insightGrid.innerHTML = `
+            <div class="insight-card">
+                <strong>执行中</strong>
+                <div class="value">…</div>
+                <div class="detail">正在生成区域、订单、用户、品类、漏斗和退款的分段分析结果。</div>
+            </div>
+        `;
+        traceList.innerHTML = "";
+        causeList.innerHTML = `<div class="helper">正在排序主要原因...</div>`;
+        routingList.innerHTML = `<div class="helper">正在根据 root cause 结果生成责任分发...</div>`;
+        drilldownBox.innerHTML = `<div class="helper">正在下钻商品和商家...</div>`;
+        notificationDraft.innerHTML = `<h4>正在生成通知草稿</h4><div class="notification-meta">正在把责任分发结果整理成可推送文案...</div>`;
+        factsBox.innerHTML = "";
+
+        try {
+            const response = await fetch(`${resolveApiBase()}/api/ecommerce/answer`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    question
+                })
+            });
+            const result = await response.json();
+            renderResult(sessionId, result, {
+                entry: "manual_question",
+                elapsedMs: Math.round(performance.now() - startedAt)
+            });
+        } catch (error) {
+            statusBadge.textContent = "执行失败";
+            answerBox.innerHTML = `<strong>核心结论</strong><p>请求失败：${escapeHtml(error.message)}。当前 API Base URL = ${escapeHtml(resolveApiBase() || "(same-origin)")}</p>`;
+            runtimeOverviewGrid.innerHTML = renderRuntimeOverview({
+                pathType: "failed",
+                elapsedMs: Math.round(performance.now() - startedAt),
+                sourceSummary: "请求失败",
+                toolSummary: "未执行"
+            });
+            insightGrid.innerHTML = `
+                <div class="insight-card">
+                    <strong>执行失败</strong>
+                    <div class="value">-</div>
+                    <div class="detail">这次没有拿到有效结果，请检查服务是否启动，或者确认当前问题和数据日期是否匹配。</div>
+                </div>
+            `;
+        } finally {
+            runBtn.disabled = false;
+            triggerBtn.disabled = false;
+            heroTriggerBtn.disabled = false;
+        }
+    }
+
+    async function runTriggerWatch() {
+        setLoadingState("正在运行 GMV 异常巡检...", "系统正在按 trigger 配置检查演示异常，并生成 root cause、责任分发和通知草稿。");
+        try {
+            const response = await fetch(`${resolveApiBase()}/api/ecommerce/triggers/gmv-drop-watch/run-once`, {
+                method: "POST"
+            });
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.message || result.error_message || "trigger 执行失败");
+            }
+            const analysis = result.analysis || {};
+            if (!analysis.success) {
+                throw new Error("trigger 已执行，但没有拿到可展示的 root cause 分析结果");
+            }
+            renderResult("trigger-gmv-drop-watch", analysis, {
+                entry: "trigger",
+                elapsedMs: result.execution_time_ms,
+                triggerDate: result.demo_report_date || "",
+                conditionPassed: result.condition_passed
+            });
+            statusBadge.textContent = result.condition_passed ? "已触发异常" : "未触发异常";
+            questionEcho.textContent = `GMV 异常巡检：${result.demo_report_date || "按 yesterday 模式"}，耗时 ${result.execution_time_ms || "-"} ms`;
+        } catch (error) {
+            statusBadge.textContent = "巡检失败";
+            answerBox.innerHTML = `<strong>核心结论</strong><p>GMV 异常巡检失败：${escapeHtml(error.message)}。当前 API Base URL = ${escapeHtml(resolveApiBase() || "(same-origin)")}</p>`;
+            runtimeOverviewGrid.innerHTML = renderRuntimeOverview({
+                pathType: "trigger_failed",
+                elapsedMs: "-",
+                sourceSummary: "请求失败",
+                toolSummary: "未执行"
+            });
+            insightGrid.innerHTML = `
+                <div class="insight-card">
+                    <strong>巡检失败</strong>
+                    <div class="value">-</div>
+                    <div class="detail">请确认服务已启用 app.operations.gmv-drop-watch.enabled=true，并且 demo-report-date 指向可复现异常日期。</div>
+                </div>
+            `;
+        } finally {
+            runBtn.disabled = false;
+            triggerBtn.disabled = false;
+            heroTriggerBtn.disabled = false;
+        }
+    }
+
+    function setLoadingState(questionText, detailText) {
+        runBtn.disabled = true;
+        triggerBtn.disabled = true;
+        heroTriggerBtn.disabled = true;
+        statusBadge.textContent = "执行中";
+        questionEcho.textContent = questionText;
+        answerBox.innerHTML = `<strong>核心结论</strong><p>${escapeHtml(detailText)}</p>`;
+        runtimeOverviewGrid.innerHTML = renderRuntimeOverview({
+            pathType: "running",
+            elapsedMs: "...",
+            sourceSummary: "等待结果",
+            toolSummary: "等待 Tool 调用"
+        });
+        insightGrid.innerHTML = `
+            <div class="insight-card">
+                <strong>执行中</strong>
+                <div class="value">…</div>
+                <div class="detail">正在生成区域、订单、用户、品类、漏斗、退款和责任分发结果。</div>
+            </div>
+        `;
+        traceList.innerHTML = "";
+        causeList.innerHTML = `<div class="helper">正在排序主要原因...</div>`;
+        routingList.innerHTML = `<div class="helper">正在生成业务责任分发...</div>`;
+        drilldownBox.innerHTML = `<div class="helper">正在下钻商品和商家...</div>`;
+        notificationDraft.innerHTML = `<h4>正在生成通知草稿</h4><div class="notification-meta">正在把责任分发结果整理成可推送文案...</div>`;
+        factsBox.innerHTML = "";
+    }
+
+    function initializeApiBase() {
+        if (window.location.protocol === "file:") {
+            apiBaseEl.value = "http://localhost:18080";
+            apiHintEl.innerHTML = '当前页面是通过 <code>file://</code> 打开的，请确认本地服务已经启动，并把 API 地址指到对应端口，例如 <code>http://localhost:18080</code>。';
+        } else {
+            apiBaseEl.value = "";
+            apiHintEl.innerHTML = '当前页面由服务端同源提供，API 请求会直接走当前站点。';
+        }
+    }
+
+    function resolveApiBase() {
+        return apiBaseEl.value.trim().replace(/\/$/, "");
+    }
+
+    function renderResult(sessionId, result, runtimeMeta = {}) {
+        statusBadge.textContent = result.success ? "执行成功" : "需要澄清";
+        pathTypeValue.textContent = result.path_type || "-";
+        toolChainValue.textContent = Array.isArray(result.tool_chain) ? result.tool_chain.join(" -> ") : "-";
+        sessionValue.textContent = sessionId || "-";
+        answerBox.innerHTML = `<strong>核心结论</strong><p>${escapeHtml(formatBusinessAnswer(result.answer || result.message || "暂无结果"))}</p>`;
+        runtimeOverviewGrid.innerHTML = renderRuntimeOverview(buildRuntimeOverview(result, runtimeMeta));
+        insightGrid.innerHTML = renderInsightCards(result.facts || {});
+        causeList.innerHTML = renderCauseRanking(result.root_cause || {});
+
+        const decisionTrace = result.root_cause && Array.isArray(result.root_cause.decision_trace)
+            ? result.root_cause.decision_trace
+            : [];
+        traceList.innerHTML = decisionTrace.length
+            ? decisionTrace.map((step, index) => `
+                <article class="trace-step">
+                    <div class="trace-step-index">${index + 1}</div>
+                    <h4>${escapeHtml(step.title || "")}</h4>
+                    <p><strong>${escapeHtml(step.question || "")}</strong></p>
+                    <p>${escapeHtml(step.conclusion || "")}</p>
+                    <p>${escapeHtml(step.meaning || "")}</p>
+                </article>
+            `).join("")
+            : `<div class="helper">当前结果没有形成业务判断链，可尝试 root cause 场景。</div>`;
+
+        dataSourceValue.innerHTML = summarizeDataLineage(result.facts || {});
+        routingList.innerHTML = renderActionRouting(result.root_cause || {});
+        drilldownBox.innerHTML = renderProductSellerDrilldown(result.root_cause || {});
+        notificationDraft.innerHTML = renderNotificationDraft(result.root_cause || {});
+        factsBox.innerHTML = renderBusinessFacts(result.facts || {});
+    }
+
+    function buildRuntimeOverview(result, runtimeMeta) {
+        const pathType = runtimeMeta.entry === "trigger"
+            ? "trigger -> " + (result.path_type || "deep")
+            : (result.path_type || "unknown");
+        const elapsedMs = runtimeMeta.elapsedMs ?? "-";
+        return {
+            pathType,
+            elapsedMs,
+            sourceSummary: summarizeSourceText(result.facts || {}),
+            toolSummary: Array.isArray(result.tool_chain) && result.tool_chain.length
+                ? `${result.tool_chain.length} 个 Tool：${result.tool_chain.join(" -> ")}`
+                : "未形成 Tool 链",
+            triggerDate: runtimeMeta.triggerDate || "",
+            conditionPassed: runtimeMeta.conditionPassed
+        };
+    }
+
+    function renderRuntimeOverview(meta) {
+        const elapsed = typeof meta.elapsedMs === "number" ? `${meta.elapsedMs} ms` : `${meta.elapsedMs || "-"}`;
+        const triggerDetail = meta.triggerDate
+            ? `巡检日期 ${escapeHtml(meta.triggerDate)}，${meta.conditionPassed ? "已触发异常" : "未触发异常"}。`
+            : pathMeaning(meta.pathType);
+        return `
+            <div class="meta-card">
+                <strong>路径类型</strong>
+                <div class="meta-value">${escapeHtml(meta.pathType || "-")}</div>
+                <div class="meta-detail">${triggerDetail}</div>
+            </div>
+            <div class="meta-card">
+                <strong>耗时</strong>
+                <div class="meta-value">${escapeHtml(elapsed)}</div>
+                <div class="meta-detail">快路径适合标准问数，deep/trigger 路径承载多步归因。</div>
+            </div>
+            <div class="meta-card">
+                <strong>数据来源 / Tool 摘要</strong>
+                <div class="meta-value">${escapeHtml(meta.sourceSummary || "-")}</div>
+                <div class="meta-detail">${escapeHtml(meta.toolSummary || "-")}</div>
+            </div>
+        `;
+    }
+
+    function pathMeaning(pathType) {
+        if (String(pathType || "").includes("trigger")) {
+            return "系统主动巡检后触发分析，不依赖人工提问。";
+        }
+        if (pathType === "fast") {
+            return "命中标准快路径，适合高频问数。";
+        }
+        if (pathType === "deep") {
+            return "进入多步深路径，适合 root cause 归因。";
+        }
+        return "等待分析路径返回。";
+    }
+
+    function summarizeSourceText(facts) {
+        const lineage = facts.data_lineage || {};
+        if (!Object.keys(lineage).length) {
+            return "未标注";
+        }
+        const group = groupSourceTag([
+            lineage.region_metrics_source,
+            lineage.order_metrics_source,
+            lineage.category_metrics_source,
+            lineage.user_metrics_source,
+            lineage.funnel_metrics_source,
+            lineage.refund_metrics_source
+        ]);
+        if (group === "olist") {
+            return "Olist 公开数据";
+        }
+        if (group === "demo") {
+            return "Demo 补齐口径";
+        }
+        return "Olist + Demo 混合";
+    }
+
+    function renderCauseRanking(rootCause) {
+        const sections = Array.isArray(rootCause.sections) ? rootCause.sections : [];
+        if (!sections.length) {
+            return `<div class="helper">当前结果没有生成原因排序。</div>`;
+        }
+
+        const weight = { signal: 0, insufficient: 1, stable: 2 };
+        const sorted = [...sections].sort((left, right) => {
+            const leftWeight = weight[left.status] ?? 3;
+            const rightWeight = weight[right.status] ?? 3;
+            return leftWeight === rightWeight ? 0 : leftWeight - rightWeight;
+        });
+
+        return sorted.map((section, index) => `
+            <article class="cause-card">
+                <div class="cause-rank">${index + 1}</div>
+                <div>
+                    <span class="cause-badge ${escapeHtml(section.status || "")}">${escapeHtml(statusLabel(section.status))}</span>
+                    <h4>${escapeHtml(section.title || "未命名维度")}</h4>
+                    <p>${escapeHtml(section.summary || "暂无结论")}</p>
+                    <p>数据来源：${escapeHtml(sourceLabel(section.source))}；可信度：${escapeHtml(confidenceLabel(section.confidence))}</p>
+                </div>
+            </article>
+        `).join("");
+    }
+
+    function statusLabel(status) {
+        if (status === "signal") {
+            return "重点原因";
+        }
+        if (status === "insufficient") {
+            return "证据不足";
+        }
+        if (status === "stable") {
+            return "暂不主导";
+        }
+        return "待判断";
+    }
+
+    function sourceLabel(source) {
+        if (source === "olist_public_dataset") {
+            return "Olist 公开数据";
+        }
+        if (source === "demo_seed") {
+            return "Demo 补齐口径";
+        }
+        return source || "未标注";
+    }
+
+    function renderActionRouting(rootCause) {
+        const routes = Array.isArray(rootCause.action_routing) ? rootCause.action_routing : [];
+        if (!routes.length) {
+            return `<div class="helper">当前结果没有生成责任分发。</div>`;
+        }
+        return routes.map(route => `
+            <article class="routing-card">
+                <strong>${escapeHtml(route.owner_name || "待确认负责人")} · ${escapeHtml(route.priority || "P2")}</strong>
+                <p><b>为什么分给他：</b>${escapeHtml(route.reason || "")}</p>
+                <p><b>证据：</b>${escapeHtml(route.evidence || "")}</p>
+                <p><b>下一步动作：</b>${escapeHtml(route.next_action || "")}</p>
+                ${renderChecklist(route.investigation_checklist)}
+                <p><b>交付物：</b>${escapeHtml(route.output_format || "输出排查结论。")}</p>
+            </article>
+        `).join("");
+    }
+
+    function renderChecklist(items) {
+        if (!Array.isArray(items) || !items.length) {
+            return "";
+        }
+        return `
+            <p><b>排查清单：</b></p>
+            ${items.map(item => `<p>· ${escapeHtml(item)}</p>`).join("")}
+        `;
+    }
+
+    function renderNotificationDraft(rootCause) {
+        const draft = rootCause.notification_draft || {};
+        if (!draft.body) {
+            return `
+                <h4>暂无通知草稿</h4>
+                <div class="notification-meta">当前结果还没有形成可推送的责任分发文案。</div>
+            `;
+        }
+        const roles = Array.isArray(draft.target_roles) ? draft.target_roles.join("、") : "待确认";
+        return `
+            <h4>${escapeHtml(draft.title || "经营异常通知草稿")}</h4>
+            <div class="notification-meta">
+                推送状态：仅生成草稿，暂不自动发送。建议接收角色：${escapeHtml(roles)}。风险级别：${escapeHtml(draft.severity || "unknown")}。
+            </div>
+            <pre>${escapeHtml(draft.body)}</pre>
+            <div class="notification-meta" style="margin-top: 10px;">${escapeHtml(draft.send_policy || "")}</div>
+        `;
+    }
+
+    function renderProductSellerDrilldown(rootCause) {
+        const rows = Array.isArray(rootCause.product_seller_drilldown) ? rootCause.product_seller_drilldown : [];
+        if (!rows.length) {
+            return `<div class="helper">当前结果没有可下钻的商品/商家明细。</div>`;
+        }
+        return `
+            <table class="drilldown-table">
+                <thead>
+                    <tr>
+                        <th>品类</th>
+                        <th>商品 ID</th>
+                        <th>商家 ID</th>
+                        <th>前日 GMV</th>
+                        <th>当前 GMV</th>
+                        <th>GMV 变化</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.slice(0, 5).map(row => `
+                        <tr>
+                            <td>${escapeHtml(row.category_l1 || "-")}</td>
+                            <td>${escapeHtml(row.product_id || "-")}</td>
+                            <td>${escapeHtml(row.seller_id || "-")}</td>
+                            <td>${formatMoney(row.previous_gmv)}</td>
+                            <td>${formatMoney(row.current_gmv)}</td>
+                            <td>${formatMoney(row.gmv_delta)}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+        `;
+    }
+
+    function formatBusinessAnswer(answer) {
+        return String(answer)
+            .replace(/当前区域\/订单\/品类判断分别使用[^。]*。/g, "")
+            .replace(/用户\/漏斗\/退款仍沿主链数据。/g, "")
+            .trim();
+    }
+
+    function summarizeDataLineage(facts) {
+        const lineage = facts.data_lineage || {};
+        if (!Object.keys(lineage).length) {
+            return `<div class="helper">未标注</div>`;
+        }
+
+        return `
+            <div class="source-stack">
+                <div class="source-row">
+                    <span class="source-row-label">区域 / 订单 / 品类</span>
+                    ${renderSourcePill(groupSourceTag([
+                        lineage.region_metrics_source,
+                        lineage.order_metrics_source,
+                        lineage.category_metrics_source
+                    ]))}
+                </div>
+                <div class="source-row">
+                    <span class="source-row-label">用户 / 漏斗 / 退款</span>
+                    ${renderSourcePill(groupSourceTag([
+                        lineage.user_metrics_source,
+                        lineage.funnel_metrics_source,
+                        lineage.refund_metrics_source
+                    ]))}
+                </div>
+            </div>
+        `;
+    }
+
+    function groupSourceTag(values) {
+        const normalized = values.filter(Boolean).map(value => value === "olist_public_dataset" ? "olist" : "demo");
+        if (!normalized.length) {
+            return "unknown";
+        }
+        return [...new Set(normalized)].length === 1 ? normalized[0] : "mixed";
+    }
+
+    function renderSourcePill(sourceType) {
+        if (sourceType === "olist") {
+            return `<span class="source-pill olist">Olist 公开数据</span>`;
+        }
+        if (sourceType === "demo") {
+            return `<span class="source-pill demo">Demo 补口径</span>`;
+        }
+        return `<span class="source-pill mixed">混合来源</span>`;
+    }
+
+    function renderBusinessFacts(facts) {
+        const cards = [];
+        const currentRegion = (facts.current_region || [])[0];
+        const previousRegion = (facts.previous_region || [])[0];
+        const currentOrder = (facts.current_order_structure || [])[0];
+        const previousOrder = (facts.previous_order_structure || [])[0];
+        const currentUser = (facts.current_user_metrics || [])[0];
+        const previousUser = (facts.previous_user_metrics || [])[0];
+        const topCategory = (facts.current_category_breakdown || [])[0];
+        const refundTop = (facts.refund_breakdown || [])[0];
+
+        if (currentRegion && previousRegion) {
+            cards.push(renderFactCard("区域表现", `目标区域 GMV 从 ${previousRegion.gmv} 变化到 ${currentRegion.gmv}，支付订单数从 ${previousRegion.paid_order_count} 变化到 ${currentRegion.paid_order_count}。`));
+        }
+        if (currentOrder && previousOrder) {
+            cards.push(renderFactCard("订单结构", `客单价从 ${Number(previousOrder.avg_order_value).toFixed(2)} 变化到 ${Number(currentOrder.avg_order_value).toFixed(2)}，订单量从 ${previousOrder.order_count} 变化到 ${currentOrder.order_count}。`));
+        }
+        if (currentUser && previousUser) {
+            cards.push(renderFactCard("用户规模", `DAU ${previousUser.dau} -> ${currentUser.dau}，活跃买家 ${previousUser.active_buyer_count} -> ${currentUser.active_buyer_count}。`));
+        }
+        if (topCategory) {
+            cards.push(renderFactCard("主要品类", `${topCategory.category_l1} 当前 GMV ${topCategory.gmv}，退款率 ${Number(topCategory.refund_rate || 0).toFixed(4)}。`));
+        }
+        if (refundTop) {
+            cards.push(renderFactCard("退款压力", `${refundTop.category_l1} 退款金额 ${refundTop.refund_amount}，退款金额占比 ${Number(refundTop.refund_amount_rate || 0).toFixed(4)}。`));
+        }
+        if (facts.data_lineage) {
+            cards.push(renderFactCard("可信度说明", "区域/订单/品类来自 Olist 公开数据；用户/漏斗/退款来自 demo 补齐口径，适合展示分析链路，后续需要替换成真实行为和售后数据。"));
+        }
+
+        return cards.length ? cards.join("") : `<div class="helper">当前结果暂无可展示的业务依据。</div>`;
+    }
+
+    function renderInsightCards(facts) {
+        const currentRegion = (facts.current_region || [])[0];
+        const previousRegion = (facts.previous_region || [])[0];
+        const currentOrder = (facts.current_order_structure || [])[0];
+        const previousOrder = (facts.previous_order_structure || [])[0];
+        const drilldownTop = (facts.product_seller_drilldown || [])[0];
+        const topCategoryDelta = resolveCategoryDelta(facts.current_category_breakdown || [], facts.previous_category_breakdown || []);
+
+        const cards = [];
+
+        if (currentRegion && previousRegion) {
+            const delta = Number(currentRegion.gmv || 0) - Number(previousRegion.gmv || 0);
+            cards.push(renderInsightCard(
+                "GMV 变化",
+                `${Number(previousRegion.gmv || 0).toFixed(2)} → ${Number(currentRegion.gmv || 0).toFixed(2)}`,
+                `区域 GMV 变化 ${delta.toFixed(2)}，支付订单数 ${previousRegion.paid_order_count} → ${currentRegion.paid_order_count}。`
+            ));
+        }
+
+        if (currentOrder && previousOrder) {
+            cards.push(renderInsightCard(
+                "订单结构",
+                `${previousOrder.order_count} → ${currentOrder.order_count}`,
+                `订单量 ${previousOrder.order_count} → ${currentOrder.order_count}，客单价 ${Number(previousOrder.avg_order_value || 0).toFixed(2)} → ${Number(currentOrder.avg_order_value || 0).toFixed(2)}。`
+            ));
+        }
+
+        if (topCategoryDelta) {
+            cards.push(renderInsightCard(
+                "品类拖累",
+                topCategoryDelta.category,
+                `较前一日变化 ${topCategoryDelta.delta.toFixed(2)}，前一日 ${topCategoryDelta.previous.toFixed(2)}，当前 ${topCategoryDelta.current.toFixed(2)}。`
+            ));
+        }
+
+        if (drilldownTop) {
+            cards.push(renderInsightCard(
+                "优先下钻",
+                `${drilldownTop.category_l1 || "-"} / 商家`,
+                `product_id=${drilldownTop.product_id || "-"}，seller_id=${drilldownTop.seller_id || "-"}，GMV变化 ${formatMoney(drilldownTop.gmv_delta)}。`
+            ));
+        }
+
+        return cards.length ? cards.join("") : `
+            <div class="insight-card">
+                <strong>暂无拆解</strong>
+                <div class="value">-</div>
+                <div class="detail">当前结果还没有足够依据生成分段分析卡片。</div>
+            </div>
+        `;
+    }
+
+    function renderInsightCard(title, value, detail) {
+        return `
+            <article class="insight-card">
+                <strong>${escapeHtml(title)}</strong>
+                <div class="value">${escapeHtml(value)}</div>
+                <div class="detail">${escapeHtml(detail)}</div>
+            </article>
+        `;
+    }
+
+    function resolveCategoryDelta(currentRows, previousRows) {
+        const current = new Map();
+        const previous = new Map();
+        currentRows.forEach(row => current.set(row.category_l1, Number(row.gmv || 0)));
+        previousRows.forEach(row => previous.set(row.category_l1, Number(row.gmv || 0)));
+
+        let best = null;
+        for (const category of new Set([...current.keys(), ...previous.keys()])) {
+            const currentValue = current.get(category) || 0;
+            const previousValue = previous.get(category) || 0;
+            const delta = currentValue - previousValue;
+            if (best === null || delta < best.delta) {
+                best = { category, current: currentValue, previous: previousValue, delta };
+            }
+        }
+        return best;
+    }
+
+    function formatRate(value) {
+        return Number(value || 0).toFixed(2);
+    }
+
+    function formatMoney(value) {
+        return Number(value || 0).toFixed(2);
+    }
+
+    function confidenceLabel(value) {
+        if (value === "high") {
+            return "高";
+        }
+        if (value === "medium_high") {
+            return "中高";
+        }
+        if (value === "medium") {
+            return "中";
+        }
+        if (value === "low") {
+            return "低";
+        }
+        return value || "未标注";
+    }
+
+    function renderFactCard(title, body) {
+        return `
+            <article class="trace-step">
+                <h4>${escapeHtml(title)}</h4>
+                <p>${escapeHtml(body)}</p>
+            </article>
+        `;
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;");
+    }
+</script>
+</body>
+</html>

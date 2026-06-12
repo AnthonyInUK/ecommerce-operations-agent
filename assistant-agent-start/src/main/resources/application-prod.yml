@@ -1,0 +1,170 @@
+spring:
+  application:
+    name: assistant-agent-ecommerce-prod
+  ai:
+    model:
+      # DeepSeek uses Spring AI's OpenAI-compatible provider, so use:
+      # MODEL_PROVIDER=deepseek and SPRING_AI_MODEL_CHAT=openai.
+      chat: ${SPRING_AI_MODEL_CHAT:${MODEL_PROVIDER:dashscope}}
+    dashscope:
+      enabled: true
+      api-key: ${DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: ${MODEL_NAME:${DASHSCOPE_MODEL:qwen-max}}
+    openai:
+      api-key: ${DEEPSEEK_API_KEY:${OPENAI_API_KEY:}}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      chat:
+        options:
+          model: ${MODEL_NAME:deepseek-chat}
+
+server:
+  port: ${SERVER_PORT:18080}
+  servlet:
+    context-path: ${SERVER_CONTEXT_PATH:}
+
+spring.ai.alibaba.codeact.extension.experience:
+  enabled: true
+  fast-intent-enabled: true
+  fast-intent-react-enabled: true
+  fast-intent-code-enabled: true
+  logging:
+    enabled: true
+
+spring.ai.alibaba.codeact.extension.learning:
+  enabled: true
+  online:
+    enabled: true
+    after-agent:
+      enabled: true
+      learning-types:
+        - experience
+
+spring.ai.alibaba.codeact.extension.search:
+  enabled: true
+  project-search-enabled: true
+  knowledge-search-enabled: true
+  web-search-enabled: false
+  default-top-k: ${SEARCH_TOP_K:10}
+  search-timeout-ms: ${SEARCH_TIMEOUT_MS:5000}
+
+spring.ai.alibaba.codeact.extension.reply:
+  enabled: true
+  tools:
+    - toolName: send_success_message
+      channelCode: IDE_TEXT
+      description: 向 IDE 控制台发送成功消息
+      reactEnabled: true
+      codeActEnabled: true
+      parameters:
+        - name: text
+          type: STRING
+          required: true
+          description: 成功消息的文本
+    - toolName: send_error_message
+      channelCode: IDE_TEXT
+      description: 向 IDE 控制台发送错误消息
+      reactEnabled: true
+      codeActEnabled: true
+      parameters:
+        - name: text
+          type: STRING
+          required: true
+          description: 错误消息的文本
+    - toolName: send_notification
+      channelCode: FEISHU_WEBHOOK
+      description: 发送飞书日报或异常通知
+      reactEnabled: true
+      codeActEnabled: true
+      parameters:
+        - name: text
+          type: STRING
+          required: true
+          description: 通知的文本
+        - name: title
+          type: STRING
+          required: false
+          description: 通知标题
+
+spring.ai.alibaba.codeact.extension.evaluation:
+  enabled: true
+  input-routing:
+    enabled: true
+    suite-id: default-suite
+
+spring.ai.alibaba.codeact.extension.trigger:
+  enabled: true
+  scheduler:
+    pool-size: ${TRIGGER_POOL_SIZE:2}
+  execution:
+    execution-timeout: ${TRIGGER_TIMEOUT_MS:300000}
+    default-max-retries: ${TRIGGER_DEFAULT_MAX_RETRIES:1}
+    default-retry-delay: ${TRIGGER_RETRY_DELAY_MS:1000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+logging:
+  level:
+    com.alibaba.assistant.agent: ${APP_LOG_LEVEL:INFO}
+  file:
+    name: ${APP_LOG_FILE:./logs/assistant-agent.log}
+
+# Production-facing placeholders for the ecommerce analysis deployment.
+# Keep secrets in environment variables instead of committing them here.
+app:
+  deployment:
+    env: prod
+  validation:
+    strict-startup: ${APP_VALIDATION_STRICT_STARTUP:false}
+  datasource:
+    enabled: ${APP_DATASOURCE_ENABLED:true}
+    driver-class-name: ${APP_DATASOURCE_DRIVER:org.h2.Driver}
+    url: ${APP_DATASOURCE_URL:jdbc:h2:file:./data/ecommerce-agent;MODE=MySQL;AUTO_SERVER=TRUE;DATABASE_TO_UPPER=false}
+    username: ${APP_DATASOURCE_USERNAME:sa}
+    password: ${APP_DATASOURCE_PASSWORD:}
+    bootstrap-demo-data: ${APP_BOOTSTRAP_DEMO_DATA:false}
+    bootstrap-olist-raw-schema: ${APP_BOOTSTRAP_OLIST_RAW_SCHEMA:true}
+    olist-raw-import-dir: ${APP_OLIST_RAW_IMPORT_DIR:}
+    bootstrap-olist-analytics: ${APP_BOOTSTRAP_OLIST_ANALYTICS:true}
+    prefer-olist-analytics: ${APP_PREFER_OLIST_ANALYTICS:true}
+    read-cache-enabled: ${READ_CACHE_ENABLED:true}
+    read-cache-ttl-seconds: ${READ_CACHE_TTL_SECONDS:120}
+    read-cache-max-entries: ${READ_CACHE_MAX_ENTRIES:512}
+    read-cache-cache-empty-results: ${READ_CACHE_CACHE_EMPTY_RESULTS:false}
+  operations:
+    daily-report:
+      enabled: ${APP_OPERATIONS_DAILY_REPORT_ENABLED:false}
+      cron: ${APP_OPERATIONS_DAILY_REPORT_CRON:0 0 8 * * *}
+      source-id: ${APP_OPERATIONS_DAILY_REPORT_SOURCE_ID:ecommerce-ops}
+      created-by: ${APP_OPERATIONS_DAILY_REPORT_CREATED_BY:system}
+    gmv-drop-watch:
+      enabled: ${APP_OPERATIONS_GMV_DROP_WATCH_ENABLED:false}
+      cron: ${APP_OPERATIONS_GMV_DROP_WATCH_CRON:0 15 8 * * *}
+      source-id: ${APP_OPERATIONS_GMV_DROP_WATCH_SOURCE_ID:ecommerce-ops}
+      created-by: ${APP_OPERATIONS_GMV_DROP_WATCH_CREATED_BY:system}
+      relative-drop-threshold: ${APP_OPERATIONS_GMV_DROP_WATCH_THRESHOLD:0.15}
+      week-over-week-drop-threshold: ${APP_OPERATIONS_GMV_DROP_WATCH_WOW_THRESHOLD:0.15}
+      rolling-average-window-days: ${APP_OPERATIONS_GMV_DROP_WATCH_ROLLING_WINDOW_DAYS:7}
+      rolling-average-drop-threshold: ${APP_OPERATIONS_GMV_DROP_WATCH_ROLLING_THRESHOLD:0.12}
+      year-over-year-drop-threshold: ${APP_OPERATIONS_GMV_DROP_WATCH_YOY_THRESHOLD:0.15}
+      special-period-threshold-multiplier: ${APP_OPERATIONS_GMV_DROP_WATCH_SPECIAL_PERIOD_MULTIPLIER:1.5}
+      demo-report-date: ${APP_OPERATIONS_GMV_DROP_WATCH_DEMO_REPORT_DATE:}
+      holiday-dates: ${APP_OPERATIONS_GMV_DROP_WATCH_HOLIDAY_DATES:}
+      activity-windows: ${APP_OPERATIONS_GMV_DROP_WATCH_ACTIVITY_WINDOWS:}
+  reply:
+    feishu-webhook: ${FEISHU_WEBHOOK_URL:}
+    notification-dedup-enabled: ${FEISHU_NOTIFICATION_DEDUP_ENABLED:true}
+    notification-dedup-window-seconds: ${FEISHU_NOTIFICATION_DEDUP_WINDOW_SECONDS:1800}
+    persistent-notification-dedup-enabled: ${PERSISTENT_NOTIFICATION_DEDUP_ENABLED:true}
+    notification-fallback-to-ide-log-enabled: ${NOTIFICATION_FALLBACK_TO_IDE_LOG_ENABLED:true}
+    feishu-webhook-timeout-seconds: ${FEISHU_WEBHOOK_TIMEOUT_SECONDS:8}

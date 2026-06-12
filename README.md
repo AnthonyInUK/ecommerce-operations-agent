@@ -8,6 +8,140 @@
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-1.1.0-blueviolet.svg)](https://spring.io/projects/spring-ai)
 [![GraalVM](https://img.shields.io/badge/GraalVM-Polyglot-red.svg)](https://www.graalvm.org/)
 
+## Ecommerce Operations Anomaly Agent
+
+This repository is currently shaped as an **Agent engineering portfolio project** with a product-facing demo. The core idea is simple: instead of building a generic chatbot, the Agent is embedded into an ecommerce operations workflow.
+
+```text
+business anomaly -> anomaly_id -> Agent route -> tool evidence -> root cause -> human confirmation -> owner dispatch -> Feishu notification / workflow record
+```
+
+The main demo page is:
+
+```text
+http://localhost:18080/agent-console/index.html
+```
+
+What the demo shows:
+
+- **Anomaly center**: business systems or monitoring rules produce an `anomaly_id`.
+- **Agent routing**: `anomaly_id -> metric_id -> analysis_route`, so different anomaly types use different analysis priorities.
+- **Tool-based evidence**: the Agent does not only answer text; it calls GMV, order, user, category, funnel, refund and business-evidence tools.
+- **Human-in-the-loop control**: analysts confirm whether the anomaly is valid before dispatching or sending notifications.
+- **Ownership workflow**: platform/category/growth/after-sales roles can receive, handle, record and close anomalies.
+- **Delivery channel**: Feishu notification is a delivery side effect, separated from workflow state.
+
+For a short walkthrough, see [DEMO_SCRIPT.md](DEMO_SCRIPT.md).
+
+## Ecommerce Analysis Agent Extension
+
+This fork includes an ecommerce operations analysis Agent built on AssistantAgent. The goal is not to build another BI chatbot, but to connect an operational workflow:
+
+```text
+detect anomaly -> break down dimensions -> explain root cause -> route ownership -> draft notification
+```
+
+The current showcase focuses on a GMV drop scenario. A scheduled/manual trigger detects a GMV anomaly, runs a multi-step root cause workflow, produces evidence cards, routes the issue to business roles, and generates a Feishu-ready notification draft.
+
+### Why This Project Exists
+
+Traditional "ask data in natural language" products are useful for single metrics, but ecommerce operations often need a chain of actions: compare GMV, split order volume and AOV, drill into region/category, check user scale, inspect funnel/refund signals, and then push the finding to the right owner.
+
+This project uses **Text-to-Code / Code-as-Action** instead of only Text-to-SQL:
+
+- **Standard questions** use FastIntent and curated snapshots for fast answers.
+- **Root cause questions** run a deeper tool chain for multi-step analysis.
+- **Operational triggers** proactively run the same analysis without waiting for a user question.
+- **Verified cases and runtime bad cases** keep the workflow regression-testable.
+
+### Core Demo Flow
+
+Open the operations console:
+
+```bash
+http://localhost:18080/agent-console/index.html
+```
+
+Click **运行 GMV 异常巡检**. The page calls:
+
+```http
+POST /api/ecommerce/triggers/gmv-drop-watch/run-once
+```
+
+The trigger uses `demo-report-date=2018-08-29` for a stable showcase anomaly and returns a full analysis result:
+
+- path tag: `trigger -> deep`
+- elapsed time
+- data source summary
+- tool chain summary
+- key evidence cards
+- cause ranking
+- action routing
+- notification draft
+
+### Architecture
+
+```mermaid
+flowchart LR
+    U["User Question / Scheduled Trigger"] --> R["Intent Router"]
+    R --> F["FastIntent Standard Path"]
+    R --> D["Deep Root Cause Path"]
+    R --> T["GMV Drop Watch Trigger"]
+    F --> Tools["Query Tools"]
+    D --> Tools
+    T --> Tools
+    Tools --> W["Warehouse Layers: raw / dwd / dim / ads"]
+    W --> O["Olist Public Data"]
+    W --> S["Demo补齐口径: user / funnel / refund"]
+    Tools --> B["RootCauseAnalysisResult Builder"]
+    B --> UI["Analysis Trace UI"]
+    B --> N["Action Routing + Notification Draft"]
+    B --> E["Verified Cases / Runtime Snapshot"]
+```
+
+### Data Source Policy
+
+This project intentionally uses a mixed data line:
+
+- **Olist public data**: region, order, category and product/seller drill-down.
+- **Demo-completed logic**: user scale, funnel and refund signals, because public Olist data does not contain complete behavior-stream and after-sales details.
+
+The UI explicitly shows this lineage so the demo does not overclaim production-grade data coverage.
+
+### Local Run For The Ecommerce Demo
+
+```bash
+JAVA_HOME=/path/to/java17 \
+mvn -Dmaven.repo.local=.m2/repository -pl assistant-agent-start spring-boot:run \
+  -Dspring-boot.run.arguments="\
+--server.port=18080 \
+--app.datasource.olist-raw-import-dir=/absolute/path/to/data/olist-csv \
+--app.datasource.bootstrap-olist-analytics=true \
+--app.datasource.prefer-olist-analytics=true \
+--app.operations.gmv-drop-watch.enabled=true \
+--app.operations.gmv-drop-watch.demo-report-date=2018-08-29"
+```
+
+Then visit:
+
+```text
+http://localhost:18080/agent-console/index.html
+```
+
+### Production-Oriented Deployment
+
+The first deployable shape is a single Spring Boot service:
+
+- `assistant-agent-start/src/main/resources/application-prod.yml`
+- `deploy/.env.example`
+- `deploy/Dockerfile`
+- `deploy/docker-compose.yml`
+- `deploy/start-prod.sh`
+- `deploy/stop-prod.sh`
+- `deploy/logs.sh`
+
+Use `bash deploy/start-prod.sh` after preparing `.env` from `deploy/.env.example`.
+
 ## ✨ Technical Features
 
 - 🚀 **Code-as-Action**: Agent generates and executes code to complete tasks, rather than just calling predefined tools
@@ -83,6 +217,15 @@ AssistantAgent/
 ├── assistant-agent-autoconfigure   # Spring Boot auto-configuration
 └── assistant-agent-start           # Startup module
 ```
+
+### Week E Operational Guardrails
+
+If you want to understand how the ecommerce analysis Agent stays controlled when it starts sending scheduled reports and anomaly alerts, see:
+
+- [SECURITY.md](SECURITY.md)
+- [ROBUSTNESS.md](ROBUSTNESS.md)
+- [DEMO_DAILY_REPORT_CHAIN.md](DEMO_DAILY_REPORT_CHAIN.md)
+- [DEMO_ROOT_CAUSE_CHAIN.md](DEMO_ROOT_CAUSE_CHAIN.md)
 
 ## 🚀 Quick Start
 

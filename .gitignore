@@ -4,7 +4,6 @@ target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
-*.sh
 ### IntelliJ IDEA ###
 .idea
 *.iws
@@ -35,3 +34,27 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+# Local build/runtime artifacts
+.env
+.env.*
+!.env.example
+!deploy/.env.example
+.m2/
+.local-tools/
+logs/
+data/
+assistant-agent-start/data/
+assistant-agent-start/logs/
+assistant-agent-ui/node_modules/
+assistant-agent-ui/tsconfig.tsbuildinfo
+assistant-agent-start/src/main/resources/static/agent-console/
+
+# Runtime databases / imported raw datasets
+*.mv.db
+*.trace.db
+*.lock.db
+*.log
+*.csv
+__pycache__/
+*.pyc

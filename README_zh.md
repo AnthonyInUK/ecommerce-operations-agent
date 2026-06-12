@@ -8,6 +8,121 @@
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-1.1.0-blueviolet.svg)](https://spring.io/projects/spring-ai)
 [![GraalVM](https://img.shields.io/badge/GraalVM-Polyglot-red.svg)](https://www.graalvm.org/)
 
+## 电商运营分析 Agent 扩展
+
+这个项目在 AssistantAgent 框架上补了一条电商运营分析主线。目标不是再做一个“能聊天的 BI 助手”，而是把运营分析里更关键的链路接起来：
+
+```text
+发现异常 -> 拆解维度 -> 形成解释 -> 责任分发 -> 生成通知草稿
+```
+
+当前主场景是 GMV 下跌分析：系统通过 trigger 主动巡检 GMV 异常，命中异常后自动跑 root cause，生成关键证据、主要原因排序、责任分发和飞书通知草稿。
+
+### 为什么做这个
+
+普通自然语言问数适合回答“昨天 GMV 多少”，但真实电商运营经常需要连续动作：查 GMV、拆订单量和客单价、看区域/品类、检查用户规模、漏斗和退款，再把结论同步给负责人。
+
+这个项目选择 **Text-to-Code / Code-as-Action** 路线，而不是只做 Text-to-SQL：
+
+- **标准问数**：走 FastIntent + ads 快照，快速回答高频问题。
+- **复杂归因**：走 deep path，多 Tool 串联完成 root cause。
+- **主动巡检**：走 trigger，不等人问，自动发现异常。
+- **评测闭环**：verified cases / runtime bad cases 防止链路退化。
+
+### 核心演示链路
+
+打开页面：
+
+```text
+http://localhost:18080/ecommerce-analysis-trace.html
+```
+
+点击 **运行 GMV 异常巡检**，页面会调用：
+
+```http
+POST /api/ecommerce/triggers/gmv-drop-watch/run-once
+```
+
+当前用 `demo-report-date=2018-08-29` 固定到一条可复现的 Olist 异常样本，返回内容包括：
+
+- 路径标签：`trigger -> deep`
+- 耗时
+- 数据来源
+- Tool 调用摘要
+- 关键证据
+- 主要原因排序
+- 责任分发
+- 通知草稿
+
+也可以用脚本做端到端烟测，确认“手动 root cause + 主动异常巡检”两条链路都还可用：
+
+```bash
+python3 scripts/smoke_ecommerce_demo.py --base-url http://localhost:18080
+```
+
+如果当前没有启用 trigger，可先只测问答链路：
+
+```bash
+python3 scripts/smoke_ecommerce_demo.py --skip-trigger
+```
+
+### 架构图
+
+```mermaid
+flowchart LR
+    U["用户问题 / 定时 Trigger"] --> R["意图路由"]
+    R --> F["FastIntent 标准快路径"]
+    R --> D["Root Cause 深路径"]
+    R --> T["GMV 异常巡检 Trigger"]
+    F --> Tools["电商分析 Tools"]
+    D --> Tools
+    T --> Tools
+    Tools --> W["数仓分层 raw / dwd / dim / ads"]
+    W --> O["Olist 公开数据"]
+    W --> S["Demo 补齐口径: 用户 / 漏斗 / 退款"]
+    Tools --> B["RootCauseAnalysisResult Builder"]
+    B --> UI["分析轨迹页面"]
+    B --> N["责任分发 + 通知草稿"]
+    B --> E["Verified Cases / Runtime Snapshot"]
+```
+
+### 混合数据口径说明
+
+当前不会把公开数据包装成“真实生产全量数据”：
+
+- **Olist 公开数据**：用于区域、订单、品类、商品/商家下钻。
+- **Demo 补齐口径**：用于用户规模、漏斗、退款，因为 Olist 缺少完整行为流和售后明细。
+
+页面会显式展示数据来源，避免演示时过度承诺。
+
+### 本地运行电商演示
+
+```bash
+JAVA_HOME=/path/to/java17 \
+mvn -Dmaven.repo.local=.m2/repository -pl assistant-agent-start spring-boot:run \
+  -Dspring-boot.run.arguments="\
+--server.port=18080 \
+--app.datasource.olist-raw-import-dir=/absolute/path/to/data/olist-csv \
+--app.datasource.bootstrap-olist-analytics=true \
+--app.datasource.prefer-olist-analytics=true \
+--app.operations.gmv-drop-watch.enabled=true \
+--app.operations.gmv-drop-watch.demo-report-date=2018-08-29"
+```
+
+### 部署入口
+
+第一版按单机 Spring Boot 服务部署：
+
+- `assistant-agent-start/src/main/resources/application-prod.yml`
+- `deploy/.env.example`
+- `deploy/Dockerfile`
+- `deploy/docker-compose.yml`
+- `deploy/start-prod.sh`
+- `deploy/stop-prod.sh`
+- `deploy/logs.sh`
+
+复制 `deploy/.env.example` 为 `.env` 并填好密钥后，可用 `bash deploy/start-prod.sh` 启动。
+
 ## ✨ 技术特性
 
 - 🚀 **代码即行动（Code-as-Action）**：Agent 通过生成并执行代码来完成任务，而非仅仅调用预定义工具，可以在代码中灵活组合多个工具，实现复杂流程
@@ -78,6 +193,15 @@ AssistantAgent/
 ├── assistant-agent-autoconfigure   # Spring Boot 自动配置
 └── assistant-agent-start           # 启动模块
 ```
+
+### Week E 运行规则
+
+如果你关心这个电商分析 Agent 在“主动日报 / 异常巡检”场景下如何尽量不失控，可以直接看：
+
+- [SECURITY.md](SECURITY.md)
+- [ROBUSTNESS.md](ROBUSTNESS.md)
+- [DEMO_DAILY_REPORT_CHAIN.md](DEMO_DAILY_REPORT_CHAIN.md)
+- [DEMO_ROOT_CAUSE_CHAIN.md](DEMO_ROOT_CAUSE_CHAIN.md)
 
 ## 🚀 快速启动
 

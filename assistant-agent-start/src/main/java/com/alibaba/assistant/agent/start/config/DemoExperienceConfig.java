@@ -36,10 +36,9 @@ import java.util.UUID;
 @Component
 @Order(100)
 @ConditionalOnProperty(
-    prefix = "spring.ai.alibaba.codeact.extension.experience",
+    prefix = "assistant.agent.start.demo-experiences",
     name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
+    havingValue = "true"
 )
 public class DemoExperienceConfig implements CommandLineRunner {
 

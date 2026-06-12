@@ -1,0 +1,16 @@
+.git
+.idea
+.vscode
+.DS_Store
+.env
+.m2
+.local-tools
+logs
+data
+assistant-agent-start/data
+assistant-agent-ui/node_modules
+assistant-agent-ui/tsconfig.tsbuildinfo
+assistant-agent-start/src/main/resources/static/agent-console
+**/target
+!assistant-agent-start/target
+!assistant-agent-start/target/assistant-agent-start-0.2.6.jar

@@ -1,0 +1,175 @@
+domains:
+  - id: overview
+    name: 大盘经营
+    benchmark_pain: "阿里式：工具很多，但业务到分析结论链路还是长。"
+    business_goal: "快速回答昨天卖了多少、订单量多少、区域和品类表现如何。"
+    primary_facts:
+      - table: ads_daily_core_metrics
+        grain: "date"
+      - table: ads_region_daily
+        grain: "date x region"
+      - table: ads_category_daily
+        grain: "date x category"
+    supported_metrics: ["gmv", "paid_order_count", "active_buyer", "refund_rate"]
+    supported_dimensions: ["region", "city", "category_l1", "channel", "merchant"]
+    recommended_questions:
+      - "昨天 GMV 多少？"
+      - "上周华东和华南哪个区域拖了后腿？"
+      - "本周哪些品类贡献最大？"
+
+  - id: growth
+    name: 用户增长
+    benchmark_pain: "拼多多式：增长看板存在，但重复分析和归因自动化不足。"
+    business_goal: "分析新增、活跃、留存和渠道质量，判断增长是否健康。"
+    primary_facts:
+      - table: ads_channel_daily
+        grain: "date x channel"
+      - table: dwd_user_events
+        grain: "event"
+    supported_metrics: ["dau", "active_buyer", "conversion_rate"]
+    supported_dimensions: ["channel", "region", "city", "device_type", "user_tier"]
+    recommended_questions:
+      - "最近新客主要来自哪些渠道？"
+      - "本周 DAU 怎么样？"
+      - "渠道转化率为什么下降？"
+
+  - id: refund
+    name: 售后与退款
+    benchmark_pain: "拼多多式：售后异常排查高频重复，强依赖人工复盘。"
+    business_goal: "定位哪些品类、商家或区域的售后问题在恶化。"
+    primary_facts:
+      - table: dwd_refunds
+        grain: "refund"
+      - table: ads_refund_daily
+        grain: "date x category/merchant"
+    supported_metrics: ["refund_rate"]
+    supported_dimensions: ["category_l1", "merchant", "region", "refund_reason"]
+    recommended_questions:
+      - "哪些品类退款率最高？"
+      - "退款率上涨主要集中在哪些商家？"
+
+  - id: campaign
+    name: 活动复盘
+    benchmark_pain: "京东式：标准问数之外，活动复盘仍需要多步归因。"
+    business_goal: "分析活动和投放到底带来了多少结果，以及问题出在哪个环节。"
+    primary_facts:
+      - table: dim_campaigns
+        grain: "campaign"
+      - table: ads_campaign_daily
+        grain: "date x campaign"
+      - table: dwd_user_events
+        grain: "event"
+    supported_metrics: ["gmv", "conversion_rate", "roi"]
+    supported_dimensions: ["campaign", "channel", "category_l1", "region"]
+    recommended_questions:
+      - "这次活动 ROI 怎么样？"
+      - "活动转化差是流量问题还是支付问题？"
+
+dimension_mappings:
+  region:
+    description: "业务常说的华东、华南等大区不是原始字段，需要通过城市和省份映射。"
+    values:
+      - name: 华东
+        includes: ["上海", "江苏", "浙江", "安徽", "福建", "江西", "山东"]
+      - name: 华南
+        includes: ["广东", "广西", "海南"]
+      - name: 华北
+        includes: ["北京", "天津", "河北", "山西", "内蒙古"]
+
+  category_l1:
+    description: "一级品类用于高层看盘，二三级品类用于进一步下钻。"
+    examples: ["女装", "美妆", "家电", "食品", "母婴"]
+    drill_down_hint:
+      - "当用户先问大盘，再追问“那女装呢”，默认继承上一轮时间和区域，只切到 category_l1=女装。"
+      - "当用户已经在某个区域上下文中，再问某品类时，优先做区域内品类表现。"
+
+  channel:
+    description: "渠道主要用于解释用户规模和转化质量变化，不直接代表 GMV 好坏。"
+    examples: ["自然流量", "广告投放", "短信召回", "活动导流"]
+    business_usage:
+      - "增长分析优先看渠道带来的 DAU、活跃买家和转化率"
+      - "活动复盘优先看渠道 ROI 和转化差异"
+
+metric_semantics:
+  gmv:
+    decomposition: "GMV = 支付订单数 × 客单价"
+    root_cause_hint:
+      - "当 GMV 下滑时，先判断是订单量变少，还是客单价变低。"
+      - "再继续判断订单量变化来自用户规模、转化过程还是售后恶化。"
+  paid_order_count:
+    decomposition: "支付订单数 = 活跃买家规模 × 下单/支付转化效率"
+    root_cause_hint:
+      - "订单量变化适合与 DAU、活跃买家数、漏斗转化一起看。"
+  active_buyer:
+    decomposition: "活跃买家数是交易结果和用户规模之间的桥梁指标。"
+    root_cause_hint:
+      - "当活跃买家下降时，优先判断是流量盘子缩小，还是支付转化变差。"
+  dau:
+    decomposition: "DAU 代表基础活跃盘子，不等于活跃买家。"
+    root_cause_hint:
+      - "DAU 下滑时先判断流量来源和渠道质量；DAU 稳定但活跃买家下降时，更可能是转化问题。"
+  refund_rate:
+    decomposition: "退款率 = 退款订单数 / 支付订单数"
+    root_cause_hint:
+      - "退款率异常优先解释成交后质量问题，不直接等价于前链路流量问题。"
+  conversion_rate:
+    decomposition: "默认是浏览到支付的支付转化率"
+    root_cause_hint:
+      - "当转化率下滑时，要明确是浏览到支付，还是下单到支付，避免口径混乱。"
+
+ambiguity_rules:
+  - trigger: "活跃用户"
+    clarification: "请确认是 DAU（日活）还是活跃买家数。"
+    default_behavior: "如果当前问题明显在增长分析域，优先澄清；不直接猜。"
+  - trigger: "订单量"
+    clarification: "请确认是支付订单数，还是全部下单数。当前演示默认按支付订单数理解。"
+    default_behavior: "如果问题属于 GMV/交易分析，默认解释为支付订单数。"
+  - trigger: "转化率"
+    clarification: "请确认是浏览到支付，还是下单到支付。当前演示默认看浏览到支付。"
+    default_behavior: "活动复盘和漏斗分析优先按浏览到支付理解。"
+  - trigger: "退款率"
+    clarification: "请确认是大盘退款率、区域退款率还是品类退款率。"
+    default_behavior: "如果有区域/品类上下文，优先继承上一轮 scope。"
+
+conversation_follow_up_rules:
+  - pattern: "那华东呢 / 那华南呢"
+    interpretation: "继承上一轮的指标、日期和问题类型，只替换 region。"
+  - pattern: "那女装呢 / 那家电呢"
+    interpretation: "继承上一轮的指标、日期和区域，只切换到对应 category_l1。"
+  - pattern: "那退款率呢"
+    interpretation: "继承上一轮的日期和 scope，把指标切换为 refund_rate。"
+  - pattern: "那订单量呢 / 那客单价呢"
+    interpretation: "继承上一轮日期和 scope，把分析重点切到订单结构。"
+  - pattern: "那用户呢 / 那活跃买家呢"
+    interpretation: "继承上一轮日期和 scope，把分析重点切到用户规模或买家规模。"
+
+root_cause_playbook:
+  gmv_drop:
+    description: "GMV 下跌类问题优先按结果、结构、过程、售后四层拆解。"
+    steps:
+      - "先确认区域/大盘当前值和对比基线"
+      - "再看订单结构：订单量和客单价谁在变"
+      - "再看用户规模：DAU、活跃买家有没有回落"
+      - "再拆品类结构：谁在拖后腿"
+      - "再看漏斗：流量问题还是转化问题"
+      - "最后看退款：是否是成交后质量问题"
+    answer_shape:
+      - "先给结论：跌了多少、谁贡献最大"
+      - "再给解释：用户规模 / 订单结构 / 漏斗 / 退款谁是主因"
+      - "最后给一句业务含义：更像流量问题、转化问题还是售后问题"
+
+path_routing:
+  fast_path:
+    business_rule: "标准报数、排行、环比同比优先走 ads 层和模板化回答。"
+    benchmark_value: "对应拼多多/阿里场景里的高频重复看数问题，优先缩短人工链路。"
+    examples:
+      - "昨天 GMV 多少"
+      - "本周品类排名前五"
+      - "今日 DAU"
+  deep_path:
+    business_rule: "涉及原因、异常、漏斗、退款、活动复盘的问题走多步分析链。"
+    benchmark_value: "对应京东式问数天花板外的复杂归因问题，避免每次从零规划。"
+    examples:
+      - "华东 GMV 为什么跌了"
+      - "活动 ROI 差是哪里出问题"
+      - "某品类退款率为什么升高"

@@ -30,7 +30,7 @@ import org.springframework.core.env.Environment;
  *
  * <p>This example demonstrates all Assistant Agent features with:
  * <ul>
- * <li>Demo experience data initialization</li>
+ * <li>Ecommerce experience data initialization</li>
  * <li>FastIntent quick response patterns</li>
  * <li>Custom evaluation suites</li>
  * <li>Custom reply tools</li>
@@ -68,11 +68,13 @@ public class AssistantAgentApplication {
             String contextPath = environment.getProperty("server.servlet.context-path", "");
             String accessUrl = "http://localhost:" + port + contextPath + "/chatui/index.html";
             String consoleUrl = "http://localhost:" + port + contextPath + "/exp-console/";
+            String analysisTraceUrl = "http://localhost:" + port + contextPath + "/ecommerce-analysis-trace.html";
             System.out.println("\n🎉========================================🎉");
             System.out.println("✅ Assistant Agent (Full Example) is ready!");
             System.out.println("🚀 Chat with your agent: " + accessUrl);
+            System.out.println("🧭 Analysis trace demo: " + analysisTraceUrl);
             System.out.println("🛠️ Experience console: " + consoleUrl);
-            System.out.println("📚 Demo experiences loaded");
+            System.out.println("📚 Ecommerce experiences and demo warehouse ready");
             System.out.println("🎉========================================🎉\n");
         };
     }

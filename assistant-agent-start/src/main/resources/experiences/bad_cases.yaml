@@ -1,0 +1,24 @@
+bad_cases:
+  - id: bc_active_user_ambiguity
+    symptom: "用户问活跃用户时系统直接返回 DAU，没有先澄清 DAU/MAU。"
+    business_risk: "业务拿到错误口径后会误判增长趋势。"
+    suspected_root_cause: "指标词典里虽然有活跃用户别名，但歧义检测没有接入或没有命中。"
+    fix_direction:
+      - "加强 disambiguation_required 规则"
+      - "补充活跃用户相关同义词"
+
+  - id: bc_gmv_refund_confusion
+    symptom: "系统把退款冲减后金额当成 GMV 返回。"
+    business_risk: "大盘指标口径漂移，日报和周报会前后不一致。"
+    suspected_root_cause: "semantic model 中 GMV 和净收入边界不清楚。"
+    fix_direction:
+      - "收紧 gmv 默认过滤条件"
+      - "新增净收入指标，避免概念混用"
+
+  - id: bc_root_cause_stops_early
+    symptom: "回答了跌幅，但没有继续分析城市、品类或退款原因。"
+    business_risk: "看起来答了问题，实际上业务还是不知道下一步该做什么。"
+    suspected_root_cause: "深路径没有强制进入根因分析链。"
+    fix_direction:
+      - "补根因模板"
+      - "提高 deep path 问题的工具规划约束"

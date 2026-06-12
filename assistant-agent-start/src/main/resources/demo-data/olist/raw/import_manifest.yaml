@@ -1,0 +1,169 @@
+dataset:
+  id: olist_public_ecommerce
+  name: Kaggle Olist Brazilian E-Commerce Dataset
+  stage: raw
+  status: scaffold_only
+  source_type: csv
+  source_note: >
+    当前仓库只先固化 raw 层接入契约和导入顺序，不代表公开 CSV 已经放入项目。
+
+principles:
+  - raw 层尽量保留原始字段，不在导入阶段做业务口径改写
+  - 先保证主键、外键和时间字段可追溯，再考虑 dwd/dim/ads 加工
+  - 当前 Agent 主链继续使用手工 seed data；Olist 是并行升级支线
+  - 先迁 GMV / 区域 / 品类三条快路径，再扩展退款、漏斗和 root cause
+
+import_order:
+  - step: 1
+    table: raw_olist_customers
+    file: olist_customers_dataset.csv
+    depends_on: []
+    purpose: 提供 customer_id、customer_unique_id、城市和州，后续支撑区域映射
+  - step: 2
+    table: raw_olist_products
+    file: olist_products_dataset.csv
+    depends_on: []
+    purpose: 提供 product_id 和品类原始字段，后续支撑品类维表
+  - step: 3
+    table: raw_olist_orders
+    file: olist_orders_dataset.csv
+    depends_on:
+      - raw_olist_customers
+    purpose: 提供订单主表和关键时间字段，后续支撑订单事实层
+  - step: 4
+    table: raw_olist_order_items
+    file: olist_order_items_dataset.csv
+    depends_on:
+      - raw_olist_orders
+      - raw_olist_products
+    purpose: 提供订单商品明细，后续支撑 GMV 和品类结构分析
+  - step: 5
+    table: raw_olist_payments
+    file: olist_order_payments_dataset.csv
+    depends_on:
+      - raw_olist_orders
+    purpose: 提供支付金额和支付方式，后续支撑订单口径统一
+  - step: 6
+    table: raw_olist_reviews
+    file: olist_order_reviews_dataset.csv
+    depends_on:
+      - raw_olist_orders
+    purpose: 提供评价和售后体验补充信息，后续可用于退款/满意度扩展
+  - step: 7
+    table: raw_olist_geolocation
+    file: olist_geolocation_dataset.csv
+    depends_on: []
+    purpose: 提供 zip -> city/state/geolocation 映射，后续支撑区域归并
+
+table_contracts:
+  raw_olist_orders:
+    primary_key:
+      - order_id
+    key_fields:
+      - customer_id
+      - order_status
+      - order_purchase_timestamp
+      - order_approved_at
+      - order_delivered_customer_date
+    downstream_targets:
+      - dwd_orders
+    notes:
+      - 原始状态字段保持不动，支付成功口径后续在 dwd 层统一
+
+  raw_olist_order_items:
+    primary_key:
+      - order_id
+      - order_item_id
+    key_fields:
+      - product_id
+      - seller_id
+      - price
+      - freight_value
+    downstream_targets:
+      - dwd_order_items
+      - ads_category_daily
+    notes:
+      - 保留原始商品粒度，后续再做品类和商家聚合
+
+  raw_olist_customers:
+    primary_key:
+      - customer_id
+    key_fields:
+      - customer_unique_id
+      - customer_city
+      - customer_state
+    downstream_targets:
+      - dim_regions
+      - dwd_orders
+    notes:
+      - customer_state 后续映射成项目自己的 region_name（如华东/华南）
+
+  raw_olist_products:
+    primary_key:
+      - product_id
+    key_fields:
+      - product_category_name
+      - product_weight_g
+    downstream_targets:
+      - dim_products
+      - dim_categories
+      - dwd_order_items
+    notes:
+      - product_category_name 后续需要做中文业务映射
+
+  raw_olist_payments:
+    primary_key:
+      - order_id
+      - payment_sequential
+    key_fields:
+      - payment_type
+      - payment_installments
+      - payment_value
+    downstream_targets:
+      - dwd_orders
+    notes:
+      - dwd 层再统一“支付金额”口径，不在 raw 层提前裁剪
+
+  raw_olist_reviews:
+    primary_key:
+      - review_id
+    key_fields:
+      - order_id
+      - review_score
+      - review_creation_date
+    downstream_targets:
+      - dwd_refunds
+      - future_service_quality_features
+    notes:
+      - 当前不是主链必需，先原样保留
+
+  raw_olist_geolocation:
+    primary_key: []
+    key_fields:
+      - geolocation_zip_code_prefix
+      - geolocation_city
+      - geolocation_state
+    downstream_targets:
+      - dim_regions
+    notes:
+      - geolocation 原始数据较脏，后续只作为区域补充映射来源
+
+field_mapping_hints:
+  order_time:
+    source: raw_olist_orders.order_purchase_timestamp
+    comment: 后续默认作为订单发生时间
+  paid_amount:
+    source: raw_olist_payments.payment_value
+    comment: 后续支付金额默认从 payments 汇总，而不是直接用 order_items price 简单相加
+  category:
+    source: raw_olist_products.product_category_name
+    comment: 后续在 dim_categories 中补中文品类映射
+  region_seed:
+    source: raw_olist_customers.customer_state
+    comment: 后续映射到项目内部 region_name
+
+acceptance_checklist:
+  - 每张 raw_olist_* 表都能成功建表
+  - 导入顺序明确，不需要现场猜哪张表先导
+  - 关键主键和后续 dwd 目标表已标注
+  - raw 层边界清晰：不做业务口径改写，只做忠实接入

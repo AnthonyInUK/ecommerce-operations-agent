@@ -12,6 +12,56 @@ spring:
 server:
   port: 8080
 
+assistant.agent.start:
+  demo-experiences:
+    enabled: false                  # Enable old demo experiences only when debugging the sample app
+  ecommerce-experiences:
+    enabled: true                   # Load ecommerce metric dictionary / semantic model / verified cases
+
+app:
+  datasource:
+    enabled: true
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:assistant_agent;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    username: sa
+    password:
+    bootstrap-demo-data: true       # Auto-load demo warehouse schema and seed data on startup
+    bootstrap-olist-raw-schema: false  # Only scaffold raw_olist_* tables; keep current demo chain unchanged
+    olist-raw-import-dir:            # Optional local directory containing Olist CSV files; if set, app imports them into raw_olist_*
+    bootstrap-olist-analytics: false # Build dwd_olist_* / dim_olist_* / ads_olist_* from imported raw data
+    prefer-olist-analytics: false    # Let GMV / region / category tools prefer Olist ads snapshots when ready
+    read-cache-enabled: true         # Enable lightweight TTL cache for repeated analytical reads
+    read-cache-ttl-seconds: 120      # Keep cache short-lived to reduce stale metrics
+    read-cache-max-entries: 512      # Bound in-process cache memory; expired entries are pruned first
+    read-cache-cache-empty-results: false # Avoid caching "no data" during partial imports or stage rebuilds
+  operations:
+    daily-report:
+      enabled: false
+      cron: "0 0 8 * * *"
+      source-id: ecommerce-ops
+      created-by: system
+    gmv-drop-watch:
+      enabled: false
+      cron: "0 15 8 * * *"
+      source-id: ecommerce-ops
+      created-by: system
+      relative-drop-threshold: 0.15
+      week-over-week-drop-threshold: 0.15
+      rolling-average-window-days: 7
+      rolling-average-drop-threshold: 0.12
+      year-over-year-drop-threshold: 0.15
+      special-period-threshold-multiplier: 1.5
+      demo-report-date:
+      holiday-dates: []
+      activity-windows: []
+  reply:
+    feishu-webhook:
+    notification-dedup-enabled: true
+    notification-dedup-window-seconds: 1800
+    persistent-notification-dedup-enabled: true  # Persist dedup fingerprint across restarts
+    notification-fallback-to-ide-log-enabled: true # Degrade to IDE/log when webhook is unavailable
+    feishu-webhook-timeout-seconds: 8
+
 # ============================================================================
 # DashScope Configuration (Required)
 # ============================================================================
@@ -35,7 +85,12 @@ spring.ai.alibaba.codeact.extension.experience:
   fast-intent-enabled: false          # Default: disabled
   fast-intent-react-enabled: true
   fast-intent-code-enabled: true
-  fast-intent-allowed-tools: []       # Empty = no restriction
+  fast-intent-allowed-tools:          # Empty = no restriction
+    - GmvQueryTool
+    - RegionPerformanceQueryTool
+    - CategoryRankTool
+    - RefundAnalysisTool
+    - FunnelAnalysisTool
 
   # Query limits
   max-items-per-query: 5
@@ -156,7 +211,9 @@ spring.ai.alibaba.codeact.extension.trigger:
   scheduler:
     pool-size: 2
   execution:
-    timeout-seconds: 300
+    execution-timeout: 300000
+    default-max-retries: 1
+    default-retry-delay: 1000
 
 # ============================================================================
 # MCP Client (Optional)

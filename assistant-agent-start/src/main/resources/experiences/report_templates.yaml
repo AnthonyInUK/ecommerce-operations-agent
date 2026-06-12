@@ -1,0 +1,33 @@
+templates:
+  - id: daily_business_brief
+    name: 每日业务简报
+    target_role: "运营负责人"
+    analysis_space: overview
+    output_sections:
+      - "昨日核心指标：GMV、支付订单数、活跃买家数、退款率"
+      - "区域变化：重点区域涨跌"
+      - "品类变化：Top 品类和异常品类"
+      - "风险提醒：需要关注的异常"
+    tone: "简洁、直接、能快速拿去晨会播报"
+
+  - id: weekly_root_cause_report
+    name: 周度异常归因报告
+    target_role: "数据分析师 / 运营经理"
+    analysis_space: overview
+    output_sections:
+      - "问题确认：本周异常指标及跌幅"
+      - "拆解结果：区域、品类、商家贡献"
+      - "过程分析：流量、转化、退款、活动"
+      - "结论与建议：优先动作和责任归属"
+    tone: "有结构、有证据、有建议"
+
+  - id: refund_risk_notice
+    name: 退款风险提醒
+    target_role: "售后 / 品类运营"
+    analysis_space: refund
+    output_sections:
+      - "异常对象：品类/商家/区域"
+      - "异常幅度：退款率与历史均值对比"
+      - "可能原因：退款原因分布、活动或履约因素"
+      - "建议动作：立即排查项"
+    tone: "简短但带行动性"
