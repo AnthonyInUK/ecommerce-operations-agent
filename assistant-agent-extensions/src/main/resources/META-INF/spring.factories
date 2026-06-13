@@ -1,5 +1,6 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
 com.alibaba.assistant.agent.extension.experience.config.ExperienceExtensionAutoConfiguration,\
+com.alibaba.assistant.agent.extension.experience.config.VectorStoreExperienceAutoConfiguration,\
 com.alibaba.assistant.agent.extension.experience.config.ExperienceDisclosureAutoConfiguration,\
 com.alibaba.assistant.agent.extension.learning.config.LearningExtensionAutoConfiguration, \
 com.alibaba.assistant.agent.extension.search.config.SearchExtensionAutoConfiguration, \

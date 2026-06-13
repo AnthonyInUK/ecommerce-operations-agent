@@ -4,17 +4,20 @@ import com.alibaba.assistant.agent.extension.experience.hook.FastIntentReactHook
 import com.alibaba.assistant.agent.extension.experience.fastintent.FastIntentService;
 import com.alibaba.assistant.agent.extension.experience.internal.InMemoryExperienceProvider;
 import com.alibaba.assistant.agent.extension.experience.internal.InMemoryExperienceRepository;
+import com.alibaba.assistant.agent.extension.experience.internal.JdbcExperienceRepository;
 import com.alibaba.assistant.agent.extension.experience.fastintent.FastIntentConditionMatcher;
 import com.alibaba.assistant.agent.extension.experience.spi.ExperienceProvider;
 import com.alibaba.assistant.agent.extension.experience.spi.ExperienceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 
@@ -38,16 +41,24 @@ public class ExperienceExtensionAutoConfiguration {
     private static final Logger log = LoggerFactory.getLogger(ExperienceExtensionAutoConfiguration.class);
 
     /**
-     * 配置InMemory经验仓库实现
+     * JDBC 持久化经验仓库：检测到 JdbcTemplate 时优先创建，经验数据重启不丢失。
+     * 支持 H2（MODE=MySQL）和 PostgreSQL，首次启动自动建表。
      */
     @Bean
     @ConditionalOnMissingBean(ExperienceRepository.class)
-    @ConditionalOnProperty(prefix = "spring.ai.alibaba.codeact.extension.experience.in-memory",
-                          name = "enabled",
-                          havingValue = "true",
-                          matchIfMissing = true)
+    @ConditionalOnBean(JdbcTemplate.class)
+    public ExperienceRepository jdbcExperienceRepository(JdbcTemplate jdbcTemplate) {
+        log.info("ExperienceExtensionAutoConfiguration#jdbcExperienceRepository - reason=JdbcTemplate 可用，使用 JDBC 持久化经验仓库");
+        return new JdbcExperienceRepository(jdbcTemplate);
+    }
+
+    /**
+     * 内存经验仓库兜底：无 JdbcTemplate 时使用（纯内存，重启丢失）。
+     */
+    @Bean
+    @ConditionalOnMissingBean(ExperienceRepository.class)
     public ExperienceRepository inMemoryExperienceRepository() {
-        log.info("ExperienceExtensionAutoConfiguration#inMemoryExperienceRepository - reason=creating InMemory experience repository bean");
+        log.info("ExperienceExtensionAutoConfiguration#inMemoryExperienceRepository - reason=未检测到 JdbcTemplate，使用内存经验仓库");
         return new InMemoryExperienceRepository();
     }
 

@@ -17,6 +17,7 @@
 package com.alibaba.assistant.agent.extension.trigger.manager;
 
 import com.alibaba.assistant.agent.extension.trigger.backend.ExecutionBackend;
+import com.alibaba.assistant.agent.extension.trigger.model.ScheduleMode;
 import com.alibaba.assistant.agent.extension.trigger.model.SourceType;
 import com.alibaba.assistant.agent.extension.trigger.model.TriggerDefinition;
 import com.alibaba.assistant.agent.extension.trigger.model.TriggerExecutionRecord;
@@ -26,6 +27,7 @@ import com.alibaba.assistant.agent.extension.trigger.repository.TriggerRepositor
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.support.CronExpression;
 
 import java.time.Instant;
 import java.util.List;
@@ -239,7 +241,13 @@ public class TriggerManager {
 			throw new IllegalArgumentException("executeFunction is required");
 		}
 
-		// TODO: 添加更多验证逻辑（如Cron表达式格式验证等）
+		if (ScheduleMode.CRON == definition.getScheduleMode()) {
+			if (!CronExpression.isValidExpression(definition.getScheduleValue())) {
+				throw new IllegalArgumentException(
+						"Cron表达式格式无效: \"" + definition.getScheduleValue()
+						+ "\" — 正确格式示例: \"0 0 2 * * ?\" (秒 分 时 日 月 周)");
+			}
+		}
 	}
 
 	private String generateTriggerId() {

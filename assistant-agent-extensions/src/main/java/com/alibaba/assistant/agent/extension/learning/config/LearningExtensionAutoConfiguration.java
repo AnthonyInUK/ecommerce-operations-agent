@@ -37,17 +37,20 @@ import com.alibaba.assistant.agent.extension.learning.spi.LearningExtractor;
 import com.alibaba.assistant.agent.extension.learning.spi.LearningRepository;
 import com.alibaba.assistant.agent.extension.learning.spi.LearningStrategy;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
+import com.alibaba.assistant.agent.extension.learning.internal.JdbcLearningSessionRepository;
 import com.alibaba.cloud.ai.graph.store.Store;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -155,6 +158,17 @@ public class LearningExtensionAutoConfiguration {
 	}
 
 	/**
+	 * 学习会话日志 JDBC 仓库：有 JdbcTemplate 时创建，供离线学习任务读取历史会话。
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	@ConditionalOnBean(JdbcTemplate.class)
+	public JdbcLearningSessionRepository jdbcLearningSessionRepository(JdbcTemplate jdbcTemplate) {
+		log.info("LearningExtensionAutoConfiguration#jdbcLearningSessionRepository - reason=创建学习会话日志 JDBC 仓库");
+		return new JdbcLearningSessionRepository(jdbcTemplate);
+	}
+
+	/**
 	 * 配置经验学习提取器（LLM智能版）
 	 */
 	@Bean
@@ -183,12 +197,12 @@ public class LearningExtensionAutoConfiguration {
 	@Bean
 	@ConditionalOnProperty(prefix = "spring.ai.alibaba.codeact.extension.learning.online.after-agent", name = "enabled", havingValue = "true", matchIfMissing = true)
 	public AfterAgentLearningHook afterAgentLearningHook(LearningExecutor learningExecutor,
-			LearningStrategy learningStrategy, LearningExtensionProperties properties) {
+			LearningStrategy learningStrategy, LearningExtensionProperties properties,
+			@Autowired(required = false) JdbcLearningSessionRepository sessionRepository) {
 		String learningType = properties.getOnline().getAfterAgent().getLearningTypes().get(0);
-		log.info(
-				"LearningExtensionAutoConfiguration#afterAgentLearningHook - reason=creating after agent learning hook, learningType={}",
-				learningType);
-		return new AfterAgentLearningHook(learningExecutor, learningStrategy, learningType);
+		log.info("LearningExtensionAutoConfiguration#afterAgentLearningHook - reason=creating after agent learning hook, learningType={}, sessionLogEnabled={}",
+				learningType, sessionRepository != null);
+		return new AfterAgentLearningHook(learningExecutor, learningStrategy, learningType, sessionRepository);
 	}
 
 	/**
@@ -242,19 +256,19 @@ public class LearningExtensionAutoConfiguration {
 	public ExperienceLearningGraph experienceLearningGraph(LearningExecutor learningExecutor,
 			List<LearningExtractor<?>> extractors, List<LearningRepository<?>> repositories,
 			ExperienceLearningExtractor experienceExtractor, ExperienceRepository experienceRepository,
-			LearningExtensionProperties properties) {
-		long lookbackHours = 24; // 默认24小时
+			LearningExtensionProperties properties,
+			@Autowired(required = false) JdbcLearningSessionRepository sessionRepository) {
+		long lookbackHours = 24;
 		if (!properties.getOffline().getTasks().isEmpty()) {
 			Long lookbackPeriod = properties.getOffline().getTasks().get(0).getLookbackPeriod();
 			if (lookbackPeriod != null) {
 				lookbackHours = lookbackPeriod;
 			}
 		}
-		log.info(
-				"LearningExtensionAutoConfiguration#experienceLearningGraph - reason=creating experience learning graph, lookbackHours={}",
-				lookbackHours);
+		log.info("LearningExtensionAutoConfiguration#experienceLearningGraph - reason=creating experience learning graph, lookbackHours={}, sessionLogEnabled={}",
+				lookbackHours, sessionRepository != null);
 		return new ExperienceLearningGraph(learningExecutor, extractors, repositories, experienceExtractor,
-				experienceRepository, lookbackHours);
+				experienceRepository, lookbackHours, sessionRepository);
 	}
 
 	/**

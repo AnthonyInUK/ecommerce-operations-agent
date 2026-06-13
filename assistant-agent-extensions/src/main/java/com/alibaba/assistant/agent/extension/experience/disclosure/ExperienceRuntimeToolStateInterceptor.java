@@ -3,6 +3,7 @@ package com.alibaba.assistant.agent.extension.experience.disclosure;
 import com.alibaba.assistant.agent.common.constant.CodeactStateKeys;
 import com.alibaba.assistant.agent.extension.experience.disclosure.ExperienceDisclosurePayloads.DirectExperienceGrounding;
 import com.alibaba.assistant.agent.extension.experience.disclosure.ExperienceDisclosurePayloads.ReadExpResponse;
+import com.alibaba.assistant.agent.extension.experience.internal.ExperienceUsageTracker;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ToolCallExecutionContext;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ToolCallHandler;
@@ -30,6 +31,16 @@ public class ExperienceRuntimeToolStateInterceptor extends ToolInterceptor {
 
     private static final int DIRECT_CONTENT_MAX_LENGTH = 500;
     private static final double DIRECT_CONFIDENCE_THRESHOLD = 0.8D;
+
+    private final ExperienceUsageTracker usageTracker;
+
+    public ExperienceRuntimeToolStateInterceptor() {
+        this(new ExperienceUsageTracker());
+    }
+
+    public ExperienceRuntimeToolStateInterceptor(ExperienceUsageTracker usageTracker) {
+        this.usageTracker = usageTracker;
+    }
 
     @Override
     public String getName() {
@@ -125,6 +136,8 @@ public class ExperienceRuntimeToolStateInterceptor extends ToolInterceptor {
         if (!response.isFound() || response.getId() == null) {
             return;
         }
+
+        usageTracker.recordHit(response.getId());
 
         Map<String, Object> cache = new LinkedHashMap<>();
         Object existing = state.value(CodeactStateKeys.EXPERIENCE_DETAIL_CACHE).orElse(null);

@@ -10,6 +10,8 @@ import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -22,10 +24,17 @@ public class InMemoryExperienceRepository implements ExperienceRepository {
 
     private static final Logger log = LoggerFactory.getLogger(InMemoryExperienceRepository.class);
 
-    /**
-     * 经验存储容器，使用ConcurrentHashMap保证线程安全
-     */
     private final Map<String, Experience> experienceStore = new ConcurrentHashMap<>();
+
+    /**
+     * 经验保存后的监听器列表，用于向量索引等扩展能力。
+     * 使用 CopyOnWriteArrayList 保证并发安全。
+     */
+    private final List<Consumer<Experience>> saveListeners = new CopyOnWriteArrayList<>();
+
+    public void addSaveListener(Consumer<Experience> listener) {
+        saveListeners.add(listener);
+    }
 
     @Override
     public Experience save(Experience experience) {
@@ -36,11 +45,16 @@ public class InMemoryExperienceRepository implements ExperienceRepository {
             throw new IllegalArgumentException("Experience cannot be null");
         }
 
-        // 更新时间戳
         experience.touch();
-
-        // 保存到内存
         experienceStore.put(experience.getId(), experience);
+
+        for (Consumer<Experience> listener : saveListeners) {
+            try {
+                listener.accept(experience);
+            } catch (Exception e) {
+                log.warn("InMemoryExperienceRepository#save - reason=listener failed, id={}", experience.getId(), e);
+            }
+        }
 
         log.info("InMemoryExperienceRepository#save - reason=experience saved successfully, id={}, type={}",
                 experience.getId(), experience.getType());

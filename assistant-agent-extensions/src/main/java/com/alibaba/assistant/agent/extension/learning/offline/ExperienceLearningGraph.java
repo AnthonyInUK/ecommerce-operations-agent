@@ -20,12 +20,19 @@ import com.alibaba.assistant.agent.extension.experience.model.Experience;
 import com.alibaba.assistant.agent.extension.experience.spi.ExperienceRepository;
 import com.alibaba.assistant.agent.extension.learning.extractor.ExperienceLearningExtractor;
 import com.alibaba.assistant.agent.extension.learning.internal.DefaultLearningContext;
+import com.alibaba.assistant.agent.extension.learning.internal.JdbcLearningSessionRepository;
 import com.alibaba.assistant.agent.extension.learning.model.LearningContext;
+import com.alibaba.assistant.agent.extension.learning.model.LearningSessionRecord;
 import com.alibaba.assistant.agent.extension.learning.model.LearningTriggerSource;
+import com.alibaba.assistant.agent.extension.learning.model.ModelCallRecord;
+import com.alibaba.assistant.agent.extension.learning.model.ToolCallRecord;
 import com.alibaba.assistant.agent.extension.learning.spi.LearningExecutor;
 import com.alibaba.assistant.agent.extension.learning.spi.LearningExtractor;
 import com.alibaba.assistant.agent.extension.learning.spi.LearningRepository;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,85 +57,66 @@ public class ExperienceLearningGraph extends OfflineLearningGraph {
 
 	private final ExperienceRepository experienceRepository;
 
+	private final JdbcLearningSessionRepository sessionRepository;
+
 	private final long lookbackPeriodHours;
+
+	private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
 	public ExperienceLearningGraph(LearningExecutor learningExecutor, List<LearningExtractor<?>> extractors,
 			List<LearningRepository<?>> repositories, ExperienceLearningExtractor experienceExtractor,
 			ExperienceRepository experienceRepository, long lookbackPeriodHours) {
+		this(learningExecutor, extractors, repositories, experienceExtractor,
+				experienceRepository, lookbackPeriodHours, null);
+	}
+
+	public ExperienceLearningGraph(LearningExecutor learningExecutor, List<LearningExtractor<?>> extractors,
+			List<LearningRepository<?>> repositories, ExperienceLearningExtractor experienceExtractor,
+			ExperienceRepository experienceRepository, long lookbackPeriodHours,
+			JdbcLearningSessionRepository sessionRepository) {
 		super(learningExecutor, extractors, repositories, "experience_learning_graph");
 		this.experienceExtractor = experienceExtractor;
 		this.experienceRepository = experienceRepository;
-		this.lookbackPeriodHours = lookbackPeriodHours > 0 ? lookbackPeriodHours : 24; // 默认24小时
+		this.lookbackPeriodHours = lookbackPeriodHours > 0 ? lookbackPeriodHours : 24;
+		this.sessionRepository = sessionRepository;
 	}
 
 	@Override
 	protected List<Object> fetchHistoricalData(RunnableConfig config) {
-		log.info(
-				"ExperienceLearningGraph#fetchHistoricalData - reason=fetching historical execution data, lookbackHours={}",
+		log.info("ExperienceLearningGraph#fetchHistoricalData - reason=fetching session logs, lookbackHours={}",
 				lookbackPeriodHours);
 
-		try {
-			// TODO: 实现从实际数据源获取历史执行数据
-			// 可能的数据源：
-			// - Store中的执行历史
-			// - 日志系统
-			// - 数据库记录
-			// - 文件系统
-
-			// 示例：获取最近N小时的执行记录
-			Instant cutoffTime = Instant.now().minus(lookbackPeriodHours, ChronoUnit.HOURS);
-
-			List<Object> historicalData = new ArrayList<>();
-
-			// 这里应该查询实际的历史数据
-			// 例如：从Store中查询执行记录
-			// StoreSearchRequest request = StoreSearchRequest.builder()
-			// .namespace("execution_history")
-			// .query("success")
-			// .limit(1000)
-			// .build();
-			// StoreSearchResult result = store.searchItems(request);
-			// historicalData = result.getItems().stream()
-			// .map(StoreItem::getValue)
-			// .collect(Collectors.toList());
-
-			log.info(
-					"ExperienceLearningGraph#fetchHistoricalData - reason=historical data fetched, count={}, cutoffTime={}",
-					historicalData.size(), cutoffTime);
-
-			return historicalData;
+		if (sessionRepository == null) {
+			log.warn("ExperienceLearningGraph#fetchHistoricalData - reason=no JdbcLearningSessionRepository available, offline learning skipped");
+			return List.of();
 		}
-		catch (Exception e) {
-			log.error("ExperienceLearningGraph#fetchHistoricalData - reason=failed to fetch historical data", e);
+
+		try {
+			Instant cutoffTime = Instant.now().minus(lookbackPeriodHours, ChronoUnit.HOURS);
+			List<LearningSessionRecord> records = sessionRepository.findUnprocessedSince(cutoffTime);
+			log.info("ExperienceLearningGraph#fetchHistoricalData - reason=session logs fetched, count={}", records.size());
+			return new ArrayList<>(records);
+		} catch (Exception e) {
+			log.error("ExperienceLearningGraph#fetchHistoricalData - reason=failed to fetch session logs", e);
 			return List.of();
 		}
 	}
 
 	@Override
 	protected List<Object> preprocessData(List<Object> rawData, RunnableConfig config) {
-		log.info("ExperienceLearningGraph#preprocessData - reason=preprocessing execution data, count={}",
-				rawData.size());
+		log.info("ExperienceLearningGraph#preprocessData - reason=filtering session logs, count={}", rawData.size());
 
-		try {
-			// 过滤和清洗数据
-			List<Object> processedData = rawData.stream().filter(data -> {
-				// TODO: 实现过滤逻辑
-				// - 过滤掉失败的执行
-				// - 过滤掉不完整的数据
-				// - 过滤掉重复的数据
-				return true; // 示例：全部保留
-			}).collect(Collectors.toList());
+		// 过滤掉没有任何实质内容的会话（工具调用和代码生成都是空的），没有可学习的内容
+		List<Object> processedData = rawData.stream().filter(data -> {
+			if (!(data instanceof LearningSessionRecord record)) return false;
+			boolean hasToolCalls = record.getToolCallsJson() != null && !record.getToolCallsJson().equals("[]");
+			boolean hasModelCalls = record.getModelCallsJson() != null && !record.getModelCallsJson().equals("[]");
+			return hasToolCalls || hasModelCalls;
+		}).collect(Collectors.toList());
 
-			log.info(
-					"ExperienceLearningGraph#preprocessData - reason=preprocessing completed, original={}, filtered={}",
-					rawData.size(), processedData.size());
-
-			return processedData;
-		}
-		catch (Exception e) {
-			log.error("ExperienceLearningGraph#preprocessData - reason=preprocessing failed", e);
-			return rawData;
-		}
+		log.info("ExperienceLearningGraph#preprocessData - reason=filter completed, original={}, kept={}",
+				rawData.size(), processedData.size());
+		return processedData;
 	}
 
 	@Override
@@ -153,8 +141,16 @@ public class ExperienceLearningGraph extends OfflineLearningGraph {
 				allExperiences.addAll(experiences);
 			}
 
-			log.info(
-					"ExperienceLearningGraph#extractLearningRecords - reason=extraction completed, input={}, extracted={}",
+			// 无论提取到多少经验，都标记这批会话已被离线处理过，避免下次重复消费
+			if (sessionRepository != null) {
+				List<String> processedIds = processedData.stream()
+						.filter(d -> d instanceof LearningSessionRecord)
+						.map(d -> ((LearningSessionRecord) d).getId())
+						.toList();
+				sessionRepository.markProcessed(processedIds);
+			}
+
+			log.info("ExperienceLearningGraph#extractLearningRecords - reason=extraction completed, input={}, extracted={}",
 					processedData.size(), allExperiences.size());
 
 			return allExperiences;
@@ -199,21 +195,37 @@ public class ExperienceLearningGraph extends OfflineLearningGraph {
 	}
 
 	/**
-	 * 将历史数据转换为LearningContext
+	 * 将 LearningSessionRecord 还原为 LearningContext，供 ExperienceLearningExtractor 判断。
 	 */
 	private LearningContext convertToLearningContext(Object data) {
-		// TODO: 实现实际的转换逻辑
-		// 这里需要根据历史数据的格式来提取信息
-		// 例如：
-		// - 提取对话历史
-		// - 提取工具调用记录
-		// - 提取模型调用记录
-		// - 提取执行状态
+		if (!(data instanceof LearningSessionRecord record)) {
+			return DefaultLearningContext.builder().triggerSource(LearningTriggerSource.SCHEDULED).build();
+		}
+
+		List<ToolCallRecord> toolCalls = new ArrayList<>();
+		List<ModelCallRecord> modelCalls = new ArrayList<>();
+
+		try {
+			if (record.getToolCallsJson() != null && !record.getToolCallsJson().isBlank()) {
+				toolCalls = mapper.readValue(record.getToolCallsJson(), new TypeReference<>() {});
+			}
+		} catch (Exception e) {
+			log.debug("ExperienceLearningGraph#convertToLearningContext - toolCalls parse failed: {}", e.getMessage());
+		}
+
+		try {
+			if (record.getModelCallsJson() != null && !record.getModelCallsJson().isBlank()) {
+				modelCalls = mapper.readValue(record.getModelCallsJson(), new TypeReference<>() {});
+			}
+		} catch (Exception e) {
+			log.debug("ExperienceLearningGraph#convertToLearningContext - modelCalls parse failed: {}", e.getMessage());
+		}
 
 		return DefaultLearningContext.builder()
-			.overAllState(data)
-			.triggerSource(LearningTriggerSource.SCHEDULED)
-			.build();
+				.toolCallRecords(toolCalls)
+				.modelCallRecords(modelCalls)
+				.triggerSource(LearningTriggerSource.SCHEDULED)
+				.build();
 	}
 
 }

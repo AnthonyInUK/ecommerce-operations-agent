@@ -77,6 +77,22 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- PostgreSQL driver - required when switching from H2 to PGVector for persistent vector storage -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- PGVector store - enable persistent experience vector index backed by PostgreSQL -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-pgvector-store</artifactId>
+            <version>${spring-ai.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Test Dependencies -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

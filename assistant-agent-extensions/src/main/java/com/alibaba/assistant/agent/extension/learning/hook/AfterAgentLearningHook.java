@@ -19,14 +19,21 @@ package com.alibaba.assistant.agent.extension.learning.hook;
 import com.alibaba.assistant.agent.core.observation.HookObservationHelper;
 import com.alibaba.assistant.agent.core.observation.ObservationState;
 import com.alibaba.assistant.agent.extension.learning.internal.DefaultLearningContext;
+import com.alibaba.assistant.agent.extension.learning.internal.JdbcLearningSessionRepository;
+import com.alibaba.assistant.agent.extension.learning.internal.LearningStateExtractor;
 import com.alibaba.assistant.agent.extension.learning.internal.DefaultLearningTask;
 import com.alibaba.assistant.agent.extension.learning.model.LearningContext;
 import com.alibaba.assistant.agent.extension.learning.model.LearningResult;
+import com.alibaba.assistant.agent.extension.learning.model.LearningSessionRecord;
 import com.alibaba.assistant.agent.extension.learning.model.LearningTask;
 import com.alibaba.assistant.agent.extension.learning.model.LearningTriggerContext;
 import com.alibaba.assistant.agent.extension.learning.model.LearningTriggerSource;
+import com.alibaba.assistant.agent.extension.learning.model.ModelCallRecord;
+import com.alibaba.assistant.agent.extension.learning.model.ToolCallRecord;
 import com.alibaba.assistant.agent.extension.learning.spi.LearningExecutor;
 import com.alibaba.assistant.agent.extension.learning.spi.LearningStrategy;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.hook.AgentHook;
@@ -58,11 +65,21 @@ public class AfterAgentLearningHook extends AgentHook {
 
 	private final String learningType;
 
+	private final JdbcLearningSessionRepository sessionRepository;
+
+	private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+
 	public AfterAgentLearningHook(LearningExecutor learningExecutor, LearningStrategy learningStrategy,
 			String learningType) {
+		this(learningExecutor, learningStrategy, learningType, null);
+	}
+
+	public AfterAgentLearningHook(LearningExecutor learningExecutor, LearningStrategy learningStrategy,
+			String learningType, JdbcLearningSessionRepository sessionRepository) {
 		this.learningExecutor = learningExecutor;
 		this.learningStrategy = learningStrategy;
 		this.learningType = learningType != null ? learningType : "experience";
+		this.sessionRepository = sessionRepository;
 	}
 
 	@Override
@@ -79,13 +96,19 @@ public class AfterAgentLearningHook extends AgentHook {
 			registerObservationData(state, "hook.input.conversationHistorySize", conversationHistory.size());
 
 			// 2. 构建学习上下文
+			List<ToolCallRecord> toolCallRecords = LearningStateExtractor.extractToolCallRecords(state);
+			List<ModelCallRecord> modelCallRecords = LearningStateExtractor.extractModelCallRecords(state);
+
 			LearningContext context = DefaultLearningContext.builder()
 				.overAllState(state)
 				.conversationHistory(conversationHistory)
-				.toolCallRecords(new ArrayList<>()) // TODO: 从state中提取工具调用记录
-				.modelCallRecords(new ArrayList<>()) // TODO: 从state中提取模型调用记录
+				.toolCallRecords(toolCallRecords)
+				.modelCallRecords(modelCallRecords)
 				.triggerSource(LearningTriggerSource.AFTER_AGENT)
 				.build();
+
+			// 异步落会话日志，供离线学习任务批量复盘（不阻塞主流程）
+			persistSessionLogAsync(conversationHistory, toolCallRecords, modelCallRecords);
 
 			// 3. 构建触发上下文
 			LearningTriggerContext triggerContext = LearningTriggerContext.builder()
@@ -199,6 +222,28 @@ public class AfterAgentLearningHook extends AgentHook {
 			// 静默失败，不影响主流程
 			log.debug("AfterAgentLearningHook#registerObservationData - reason=注册观测数据失败, key={}, error={}", key, e.getMessage());
 		}
+	}
+
+	private void persistSessionLogAsync(List<Object> conversationHistory,
+			List<ToolCallRecord> toolCallRecords, List<ModelCallRecord> modelCallRecords) {
+		if (sessionRepository == null) {
+			return;
+		}
+		CompletableFuture.runAsync(() -> {
+			try {
+				LearningSessionRecord record = new LearningSessionRecord();
+				// 取对话历史前 500 字作为摘要，足够 LLM 离线判断
+				if (!conversationHistory.isEmpty()) {
+					String raw = conversationHistory.toString();
+					record.setConversationSummary(raw.length() > 500 ? raw.substring(0, 500) : raw);
+				}
+				record.setToolCallsJson(mapper.writeValueAsString(toolCallRecords));
+				record.setModelCallsJson(mapper.writeValueAsString(modelCallRecords));
+				sessionRepository.save(record);
+			} catch (Exception e) {
+				log.debug("AfterAgentLearningHook#persistSessionLogAsync - reason=会话日志落库失败, error={}", e.getMessage());
+			}
+		});
 	}
 
 	/**

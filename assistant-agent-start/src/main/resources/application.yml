@@ -62,6 +62,30 @@ app:
     feishu-webhook-timeout-seconds: 8
 
 # ============================================================================
+# PGVector - Persistent vector store for experience semantic search
+# ============================================================================
+# Default: SimpleVectorStore (in-memory, resets on restart) — zero config needed.
+# Production: uncomment the block below and set the three env vars.
+#   PGVECTOR_HOST / PGVECTOR_DB / PGVECTOR_PASSWORD
+#
+# Prerequisites (run once):
+#   CREATE EXTENSION IF NOT EXISTS vector;
+#   -- Spring AI auto-creates the vector_store table on first start.
+#
+# spring:
+#   datasource:
+#     url: jdbc:postgresql://${PGVECTOR_HOST:localhost}:5432/${PGVECTOR_DB:assistant_agent}
+#     username: postgres
+#     password: ${PGVECTOR_PASSWORD}
+#     driver-class-name: org.postgresql.Driver
+#   ai:
+#     vectorstore:
+#       pgvector:
+#         dimensions: 1536          # match your embedding model output dimension
+#         distance-type: COSINE_DISTANCE
+#         index-type: HNSW
+
+# ============================================================================
 # DashScope Configuration
 # ============================================================================
 spring.ai.dashscope:

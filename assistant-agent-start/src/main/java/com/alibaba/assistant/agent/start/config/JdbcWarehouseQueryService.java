@@ -188,6 +188,8 @@ public class JdbcWarehouseQueryService {
         return shouldUseOlistAnalytics() ? "olist_public_dataset" : "demo_seed";
     }
 
+    // Olist 公开数据集不含渠道维度（无 utm_source / channel 字段），此方法固定走 demo schema。
+    // 若接入有渠道埋点的真实数仓，在此处添加 shouldUseOlistAnalytics() 分支即可。
     public List<Map<String, Object>> getChannelUserMetrics(LocalDate statDate, Integer limit) {
         int safeLimit = limit == null || limit <= 0 ? 10 : limit;
         return cachedList("channelUserMetrics|" + statDate + "|" + safeLimit, () -> jdbcTemplate.queryForList(

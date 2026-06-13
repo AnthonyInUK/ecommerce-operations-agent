@@ -1,5 +1,6 @@
 package com.alibaba.assistant.agent.extension.experience.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -115,10 +116,12 @@ public class ExperienceMetadata {
         properties.remove("tenantIdList");
     }
 
+    @JsonIgnore
     public boolean isGlobal() {
         return getTenantIdList().isEmpty();
     }
 
+    @JsonIgnore
     public boolean matchesTenantId(String tenantId) {
         return matchesTenantId(tenantId, true);
     }

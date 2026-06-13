@@ -19,6 +19,7 @@ import com.alibaba.assistant.agent.extension.experience.model.ExperienceQuery;
 import com.alibaba.assistant.agent.extension.experience.model.ExperienceQueryContext;
 import com.alibaba.assistant.agent.extension.experience.model.ExperienceType;
 import com.alibaba.assistant.agent.extension.experience.model.ReferenceEntry;
+import com.alibaba.assistant.agent.extension.experience.internal.ExperienceUsageTracker;
 import com.alibaba.assistant.agent.extension.experience.spi.ExperienceProvider;
 import com.alibaba.assistant.agent.extension.experience.spi.ExperienceRepository;
 import org.springframework.util.StringUtils;
@@ -49,15 +50,25 @@ public class ExperienceDisclosureService {
     private final ExperienceRepository experienceRepository;
     private final ExperienceExtensionProperties properties;
     private final ExperienceToolInvocationClassifier toolInvocationClassifier;
+    private final ExperienceUsageTracker usageTracker;
 
     public ExperienceDisclosureService(ExperienceProvider experienceProvider,
                                        ExperienceRepository experienceRepository,
                                        ExperienceExtensionProperties properties,
                                        ExperienceToolInvocationClassifier toolInvocationClassifier) {
+        this(experienceProvider, experienceRepository, properties, toolInvocationClassifier, new ExperienceUsageTracker());
+    }
+
+    public ExperienceDisclosureService(ExperienceProvider experienceProvider,
+                                       ExperienceRepository experienceRepository,
+                                       ExperienceExtensionProperties properties,
+                                       ExperienceToolInvocationClassifier toolInvocationClassifier,
+                                       ExperienceUsageTracker usageTracker) {
         this.experienceProvider = experienceProvider;
         this.experienceRepository = experienceRepository;
         this.properties = properties;
         this.toolInvocationClassifier = toolInvocationClassifier;
+        this.usageTracker = usageTracker;
     }
 
     public PrefetchedExperienceSnapshot prefetch(String query, ExperienceQueryContext context) {
@@ -356,10 +367,11 @@ public class ExperienceDisclosureService {
     }
 
     private Double resolveScore(Experience experience) {
-        if (experience == null || experience.getMetadata() == null) {
+        if (experience == null) {
             return null;
         }
-        return experience.getMetadata().getConfidence();
+        Double base = experience.getMetadata() != null ? experience.getMetadata().getConfidence() : null;
+        return usageTracker.getEffectiveScore(base, experience.getId());
     }
 
     private int resolveActionLimit() {

@@ -8,11 +8,13 @@ import com.alibaba.assistant.agent.extension.experience.disclosure.ExperiencePre
 import com.alibaba.assistant.agent.extension.experience.disclosure.ExperienceRuntimeModelInterceptor;
 import com.alibaba.assistant.agent.extension.experience.disclosure.ExperienceRuntimeToolStateInterceptor;
 import com.alibaba.assistant.agent.extension.experience.disclosure.ExperienceToolInvocationClassifier;
+import com.alibaba.assistant.agent.extension.experience.internal.ExperienceUsageTracker;
 import com.alibaba.assistant.agent.extension.experience.spi.ExperienceProvider;
 import com.alibaba.assistant.agent.extension.experience.spi.ExperienceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -35,7 +37,7 @@ import java.util.List;
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(ExperienceExtensionProperties.class)
-@AutoConfigureAfter(ExperienceExtensionAutoConfiguration.class)
+@AutoConfigureAfter({ExperienceExtensionAutoConfiguration.class, VectorStoreExperienceAutoConfiguration.class})
 @ConditionalOnProperty(prefix = "spring.ai.alibaba.codeact.extension.experience",
         name = "enabled",
         havingValue = "true",
@@ -67,9 +69,11 @@ public class ExperienceDisclosureAutoConfiguration {
     public ExperienceDisclosureService experienceDisclosureService(ExperienceProvider experienceProvider,
                                                                    ExperienceRepository experienceRepository,
                                                                    ExperienceExtensionProperties properties,
-                                                                   ExperienceToolInvocationClassifier classifier) {
+                                                                   ExperienceToolInvocationClassifier classifier,
+                                                                   ObjectProvider<ExperienceUsageTracker> trackerProvider) {
+        ExperienceUsageTracker tracker = trackerProvider.getIfAvailable(ExperienceUsageTracker::new);
         log.info("ExperienceDisclosureAutoConfiguration#experienceDisclosureService - reason=创建 ExperienceDisclosureService");
-        return new ExperienceDisclosureService(experienceProvider, experienceRepository, properties, classifier);
+        return new ExperienceDisclosureService(experienceProvider, experienceRepository, properties, classifier, tracker);
     }
 
     @Bean
@@ -104,8 +108,10 @@ public class ExperienceDisclosureAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ExperienceRuntimeToolStateInterceptor experienceRuntimeToolStateInterceptor() {
-        return new ExperienceRuntimeToolStateInterceptor();
+    public ExperienceRuntimeToolStateInterceptor experienceRuntimeToolStateInterceptor(
+            ObjectProvider<ExperienceUsageTracker> trackerProvider) {
+        ExperienceUsageTracker tracker = trackerProvider.getIfAvailable(ExperienceUsageTracker::new);
+        return new ExperienceRuntimeToolStateInterceptor(tracker);
     }
 
     @Bean

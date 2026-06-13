@@ -17,13 +17,16 @@
 package com.alibaba.assistant.agent.extension.learning.repository;
 
 import com.alibaba.assistant.agent.extension.experience.model.Experience;
+import com.alibaba.assistant.agent.extension.experience.model.ExperienceType;
 import com.alibaba.assistant.agent.extension.experience.spi.ExperienceRepository;
 import com.alibaba.assistant.agent.extension.learning.model.LearningSearchRequest;
 import com.alibaba.assistant.agent.extension.learning.spi.LearningRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 经验学习仓库
@@ -95,9 +98,76 @@ public class ExperienceLearningRepository implements LearningRepository<Experien
 
 	@Override
 	public List<Experience> search(LearningSearchRequest request) {
-		// TODO: 实现基于ExperienceProvider的搜索逻辑
-		log.warn("ExperienceLearningRepository#search - reason=search not implemented yet");
-		return List.of();
+		if (request == null) {
+			return List.of();
+		}
+
+		try {
+			// 1. Resolve ExperienceType from learningType string (null = all types)
+			ExperienceType type = resolveType(request.getLearningType());
+
+			// 2. Fetch from repository: by type+tenant when both are present
+			List<Experience> candidates;
+			String namespace = request.getNamespace();
+			if (type != null) {
+				candidates = experienceRepository.findByTypeAndTenantId(type, namespace);
+			} else {
+				// All types: aggregate across every ExperienceType, then filter by tenant
+				candidates = java.util.Arrays.stream(ExperienceType.values())
+						.flatMap(t -> experienceRepository.findByTypeAndTenantId(t, namespace).stream())
+						.toList();
+			}
+
+			// 3. In-memory filters: keyword and time range
+			String query = request.getQuery();
+			candidates = candidates.stream()
+					.filter(e -> matchesQuery(e, query))
+					.filter(e -> request.getTimeRangeStart() == null
+							|| (e.getCreatedAt() != null && !e.getCreatedAt().isBefore(request.getTimeRangeStart())))
+					.filter(e -> request.getTimeRangeEnd() == null
+							|| (e.getCreatedAt() != null && !e.getCreatedAt().isAfter(request.getTimeRangeEnd())))
+					.toList();
+
+			// 4. Pagination
+			int offset = Math.max(0, request.getOffset());
+			int limit = request.getLimit() > 0 ? request.getLimit() : 10;
+			List<Experience> page = candidates.stream()
+					.skip(offset)
+					.limit(limit)
+					.toList();
+
+			log.info("ExperienceLearningRepository#search - total={}, returned={}, namespace={}, type={}",
+					candidates.size(), page.size(), namespace, type);
+			return page;
+
+		} catch (Exception e) {
+			log.error("ExperienceLearningRepository#search - reason=search failed", e);
+			return List.of();
+		}
+	}
+
+	private ExperienceType resolveType(String learningType) {
+		if (!StringUtils.hasText(learningType)) {
+			return null;
+		}
+		try {
+			return ExperienceType.valueOf(learningType.trim().toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException ex) {
+			log.warn("ExperienceLearningRepository#resolveType - unknown type: {}, ignoring", learningType);
+			return null;
+		}
+	}
+
+	private boolean matchesQuery(Experience experience, String query) {
+		if (!StringUtils.hasText(query)) {
+			return true;
+		}
+		String q = query.toLowerCase(Locale.ROOT);
+		return (experience.getName() != null && experience.getName().toLowerCase(Locale.ROOT).contains(q))
+				|| (experience.getDescription() != null && experience.getDescription().toLowerCase(Locale.ROOT).contains(q))
+				|| (experience.getContent() != null && experience.getContent().toLowerCase(Locale.ROOT).contains(q))
+				|| (experience.getTags() != null && experience.getTags().stream()
+						.anyMatch(tag -> tag.toLowerCase(Locale.ROOT).contains(q)));
 	}
 
 	@Override
