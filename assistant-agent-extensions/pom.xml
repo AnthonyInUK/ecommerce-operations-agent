@@ -78,6 +78,14 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- PGVector - optional; if present, replaces SimpleVectorStore with persistent PostgreSQL vector index -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-pgvector-store</artifactId>
+            <version>${spring-ai.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <!-- TinyPinyin - 中文转拼音 (Apache License 2.0) -->
         <dependency>
             <groupId>io.github.biezhi</groupId>
@@ -90,6 +98,20 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- spring-jdbc: optional compile dep for JdbcExperienceRepository / JdbcLearningSessionRepository.
+             Users who don't need persistence don't have to include JDBC on the classpath. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 

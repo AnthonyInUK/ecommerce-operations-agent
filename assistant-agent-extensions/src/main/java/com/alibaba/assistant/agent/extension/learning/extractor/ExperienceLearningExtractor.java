@@ -87,25 +87,16 @@ public class ExperienceLearningExtractor implements LearningExtractor<Experience
 		}
 
 		Object stateObj = context.getOverAllState();
-		if (stateObj == null) {
-			log.info("ExperienceLearningExtractor#shouldLearn - reason=overall state is null, result=false");
-			return false;
-		}
+		// 离线学习路径：overAllState 为 null，仅凭 toolCallRecords/modelCallRecords 判断
+		OverAllState state = (stateObj instanceof OverAllState s) ? s : null;
 
-		if (!(stateObj instanceof OverAllState)) {
-			log.info("ExperienceLearningExtractor#shouldLearn - reason=state is not OverAllState type, result=false");
-			return false;
-		}
-
-		OverAllState state = (OverAllState) stateObj;
-
-		// 基础检查：是否有可学习内容
-		boolean hasGeneratedCode = state.value(CodeactStateKeys.GENERATED_CODES).isPresent();
 		boolean hasToolCalls = context.getToolCallRecords() != null && !context.getToolCallRecords().isEmpty();
-		boolean hasExecutionHistory = state.value(CodeactStateKeys.EXECUTION_HISTORY).isPresent();
+		boolean hasModelCalls = context.getModelCallRecords() != null && !context.getModelCallRecords().isEmpty();
 		boolean hasConversation = context.getConversationHistory() != null && !context.getConversationHistory().isEmpty();
+		boolean hasGeneratedCode = state != null && state.value(CodeactStateKeys.GENERATED_CODES).isPresent();
+		boolean hasExecutionHistory = state != null && state.value(CodeactStateKeys.EXECUTION_HISTORY).isPresent();
 
-		if (!hasGeneratedCode && !hasToolCalls && !hasExecutionHistory && !hasConversation) {
+		if (!hasGeneratedCode && !hasToolCalls && !hasExecutionHistory && !hasConversation && !hasModelCalls) {
 			log.info("ExperienceLearningExtractor#shouldLearn - reason=no learnable content found, result=false");
 			return false;
 		}
@@ -159,7 +150,7 @@ public class ExperienceLearningExtractor implements LearningExtractor<Experience
 	/**
 	 * LLM判断：是否值得学习
 	 */
-	private boolean llmJudgeWorthLearning(LearningContext context, OverAllState state) {
+	private boolean llmJudgeWorthLearning(LearningContext context, @org.springframework.lang.Nullable OverAllState state) {
 		String systemPrompt = """
 				你是一个智能学习系统的判断器。分析Agent执行过程，判断是否值得提取为经验。
 				
@@ -248,17 +239,17 @@ public class ExperienceLearningExtractor implements LearningExtractor<Experience
 	/**
 	 * 构建上下文摘要（用于判断）
 	 */
-	private String buildContextSummary(LearningContext context, OverAllState state) {
+	private String buildContextSummary(LearningContext context, @org.springframework.lang.Nullable OverAllState state) {
 		StringBuilder summary = new StringBuilder();
 
-		// 用户输入
-		state.value("input", String.class).ifPresent(input ->
-				summary.append("用户输入: ").append(truncate(input, 100)).append("\n")
-		);
-
-		// 代码生成
-		if (state.value(CodeactStateKeys.GENERATED_CODES).isPresent()) {
-			summary.append("生成了代码\n");
+		// 用户输入（在线模式 state 不为空时才有）
+		if (state != null) {
+			state.value("input", String.class).ifPresent(input ->
+					summary.append("用户输入: ").append(truncate(input, 100)).append("\n")
+			);
+			if (state.value(CodeactStateKeys.GENERATED_CODES).isPresent()) {
+				summary.append("生成了代码\n");
+			}
 		}
 
 		// 对话历史
@@ -269,6 +260,14 @@ public class ExperienceLearningExtractor implements LearningExtractor<Experience
 		// 工具调用
 		if (context.getToolCallRecords() != null) {
 			summary.append("使用了工具: ").append(context.getToolCallRecords().size()).append("次\n");
+		}
+
+		// 模型调用（离线模式）
+		if (context.getModelCallRecords() != null && !context.getModelCallRecords().isEmpty()) {
+			summary.append("模型调用次数: ").append(context.getModelCallRecords().size()).append("\n");
+			context.getModelCallRecords().stream().findFirst().ifPresent(r ->
+					summary.append("示例提问: ").append(truncate(r.getPrompt(), 100)).append("\n")
+			);
 		}
 
 		return summary.toString();

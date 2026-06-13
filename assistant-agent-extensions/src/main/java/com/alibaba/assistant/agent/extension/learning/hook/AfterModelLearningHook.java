@@ -17,6 +17,7 @@
 package com.alibaba.assistant.agent.extension.learning.hook;
 
 import com.alibaba.assistant.agent.extension.learning.internal.DefaultLearningContext;
+import com.alibaba.assistant.agent.extension.learning.internal.LearningStateExtractor;
 import com.alibaba.assistant.agent.extension.learning.internal.DefaultLearningTask;
 import com.alibaba.assistant.agent.extension.learning.model.LearningContext;
 import com.alibaba.assistant.agent.extension.learning.model.LearningResult;
@@ -71,7 +72,8 @@ public class AfterModelLearningHook extends ModelHook {
 			// 1. 构建学习上下文
 			LearningContext context = DefaultLearningContext.builder()
 				.overAllState(state)
-				.modelCallRecords(new ArrayList<>()) // TODO: 从state或config中提取模型调用记录
+				.toolCallRecords(LearningStateExtractor.extractToolCallRecords(state))
+				.modelCallRecords(LearningStateExtractor.extractModelCallRecords(state))
 				.triggerSource(LearningTriggerSource.AFTER_MODEL)
 				.build();
 

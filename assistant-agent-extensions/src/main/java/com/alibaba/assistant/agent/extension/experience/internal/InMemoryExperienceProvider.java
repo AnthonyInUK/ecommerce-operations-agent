@@ -24,9 +24,16 @@ public class InMemoryExperienceProvider implements ExperienceProvider {
     private static final Logger log = LoggerFactory.getLogger(InMemoryExperienceProvider.class);
 
     private final ExperienceRepository experienceRepository;
+    private final ExperienceUsageTracker usageTracker;
 
     public InMemoryExperienceProvider(ExperienceRepository experienceRepository) {
+        this(experienceRepository, new ExperienceUsageTracker());
+    }
+
+    public InMemoryExperienceProvider(ExperienceRepository experienceRepository,
+                                      ExperienceUsageTracker usageTracker) {
         this.experienceRepository = experienceRepository;
+        this.usageTracker = usageTracker;
     }
 
     @Override
@@ -187,15 +194,13 @@ public class InMemoryExperienceProvider implements ExperienceProvider {
         return switch (query.getOrderBy()) {
             case CREATED_AT -> Comparator.comparing(Experience::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
             case UPDATED_AT -> Comparator.comparing(Experience::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
-            case SCORE ->
-                // TODO: 实现基于置信度的评分排序
-                    (e1, e2) -> {
-                        Double score1 = e1.getMetadata().getConfidence();
-                        Double score2 = e2.getMetadata().getConfidence();
-                        if (score1 == null) score1 = 0.5;
-                        if (score2 == null) score2 = 0.5;
-                        return score2.compareTo(score1);
-                    };
+            case SCORE -> (e1, e2) -> {
+                Double base1 = e1.getMetadata() != null ? e1.getMetadata().getConfidence() : null;
+                Double base2 = e2.getMetadata() != null ? e2.getMetadata().getConfidence() : null;
+                double s1 = usageTracker.getEffectiveScore(base1, e1.getId());
+                double s2 = usageTracker.getEffectiveScore(base2, e2.getId());
+                return Double.compare(s2, s1);
+            };
         };
     }
 }

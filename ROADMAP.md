@@ -718,12 +718,12 @@ cd AssistantAgent
 **目标文件：** `extensions/experience/fastintent/FastIntentService.java`
 
 **读懂的问题：**
-1. 语义相似度用了什么 Embedding 模型，cosine similarity 阈值是多少？
-2. 命中 FastIntent 后，参数是怎么从用户输入里提取的？
-3. 命中率/误触发率的监控在哪里？
-4. 可以插入自定义 Embedding 模型吗（换成中文模型）？
+1. FastIntent 走的是条件规则路由（prefix / regex / metadata 等），不是 Embedding 相似度——为什么选规则而不是向量？（答：规则在精确场景下延迟更低、稳定性更高，避免向量相似度的模糊匹配误触发）
+2. Experience 语义召回走 Spring AI VectorStore（`RetrievalMode.DEFAULT`），Embedding 模型可通过 Spring AI 的 `EmbeddingModel` 接口替换（DashScope / 本地中文模型均可）。
+3. 命中 FastIntent 后，参数是怎么从用户输入里提取的？
+4. 命中率/误触发率的监控在哪里？
 
-**预期产出：** 确定是否需要替换中文 Embedding 模型，记录结论
+**预期产出：** 两层召回机制已明确：FastIntent 管精确规则，VectorStore 管开放语义；确认 Embedding 模型配置方式
 
 ---
 
