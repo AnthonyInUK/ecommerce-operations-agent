@@ -182,7 +182,7 @@ mvn test -pl assistant-agent-core -Dtest=LlmResilienceLoadTest
 | Scenario | Result |
 |----------|--------|
 | Healthy (provider all-success) | ~3,900 QPS, p50 3.8ms / p95 5.0ms / p99 8.9ms — thin wrapper overhead |
-| Degraded (50% provider failure) | circuit breaker opens and **short-circuits ~900 requests** (fast-fail, not retry-storm); every failure gets a graceful fallback, zero leaked exceptions |
+| Degraded (severe outage, ~80% provider failures) | circuit breaker opens after ~35 calls and **short-circuits the remaining ~2,960 requests** to an instant graceful fallback — only ~1% of traffic keeps hitting the dead provider, instead of a retry-storm; zero leaked exceptions |
 
 Beyond the LLM path, the project also ships warehouse read-caching (TTL + cache-stats) and a 3-level semantic-retrieval fallback for the experience store, so a vector-store outage degrades instead of breaking the agent.
 

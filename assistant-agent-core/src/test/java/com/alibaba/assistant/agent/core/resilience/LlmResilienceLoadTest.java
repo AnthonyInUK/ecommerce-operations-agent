@@ -100,11 +100,11 @@ class LlmResilienceLoadTest {
     void degradedProvider_circuitBreakerProtects() throws Exception {
         int concurrency = 16;
         int totalRequests = 3000;
-        // 底层 50% 失败，模拟 provider 故障
-        ResilientChatModel model = buildModel(new LoadFakeChatModel(3, 0.5));
+        // 底层 80% 失败，模拟 provider 严重故障（重试补救后的逻辑失败率仍稳定高于熔断阈值）
+        ResilientChatModel model = buildModel(new LoadFakeChatModel(3, 0.8));
 
         Result result = runLoad(model, concurrency, totalRequests);
-        printReport("降级场景 (底层 50% 故障)", model, result, concurrency);
+        printReport("降级场景 (底层 80% 故障)", model, result, concurrency);
 
         // 每个请求都应拿到结果（成功或降级），没有异常泄漏导致请求“消失”
         assertEquals(totalRequests, result.completed.get());
