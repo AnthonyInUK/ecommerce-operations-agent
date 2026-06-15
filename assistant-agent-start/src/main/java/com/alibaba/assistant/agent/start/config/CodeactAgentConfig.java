@@ -36,12 +36,8 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ModelInterceptor;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.alibaba.assistant.agent.core.resilience.CircuitBreaker;
-import com.alibaba.assistant.agent.core.resilience.RateLimiter;
-import com.alibaba.assistant.agent.core.resilience.ResilienceMetrics;
 import com.alibaba.assistant.agent.core.resilience.ResilientCallExecutor;
 import com.alibaba.assistant.agent.core.resilience.ResilientChatModel;
-import com.alibaba.assistant.agent.core.resilience.RetryPolicy;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
@@ -260,7 +256,7 @@ public class CodeactAgentConfig {
             @Autowired(required = false) FastIntentService fastIntentService,
             @Autowired(required = false) PromptContributionToolCallback promptContributionToolCallback,
             @Autowired(required = false) CodeactToolSignatureInjectionToolCallback codeactToolSignatureInjectionToolCallback,
-            @Autowired(required = false) ResilienceMetrics llmResilienceMetrics,
+            @Autowired(required = false) ResilientCallExecutor llmResilientCallExecutor,
             @Autowired(required = false) @Qualifier("experienceDisclosureTools") List<ToolCallback> experienceDisclosureTools) {
 
 		logger.info("CodeactAgentConfig#grayscaleCodeactAgent - reason=创建 CodeactAgent");
@@ -345,7 +341,7 @@ public class CodeactAgentConfig {
         modelInterceptors.add(new DashScopeMultimodalEndpointInterceptor(environment));
 
 		// 给 LLM 调用套上韧性层（限流/并发隔离/熔断/重试/降级）。默认开启，可用 app.llm.resilience.enabled=false 关闭。
-		ChatModel resilientModel = wrapWithResilience(chatModel, environment, llmResilienceMetrics);
+		ChatModel resilientModel = wrapWithResilience(chatModel, environment, llmResilientCallExecutor);
 
 		CodeactAgent.CodeactAgentBuilder builder = CodeactAgent.builder()
 				.name("CodeactAgent")
@@ -403,65 +399,19 @@ public class CodeactAgentConfig {
 	 * @return MCP dynamic tools list
 	 */
 	/**
-	 * 给 ChatModel 套上韧性层。默认开启；可通过 {@code app.llm.resilience.*} 调参或关闭。
-	 *
-	 * <p>默认参数偏保守，避免影响正常 demo：
-	 * <ul>
-	 *   <li>超时默认关闭（0）—— 真实 LLM 调用本就耗时较长，误设小超时会误杀正常请求；</li>
-	 *   <li>熔断仅在持续高失败率时才触发；重试只补救瞬时错误。</li>
-	 * </ul>
+	 * 用共享的韧性执行器（{@link ResilientCallExecutor} Bean，见 {@code LlmResilienceConfig}）包装 ChatModel。
+	 * 执行器为 null 表示韧性层已关闭（{@code app.llm.resilience.enabled=false}），此时返回原始模型。
 	 */
-	private ChatModel wrapWithResilience(ChatModel chatModel, Environment environment, ResilienceMetrics metrics) {
-		boolean enabled = environment == null
-				|| environment.getProperty("app.llm.resilience.enabled", Boolean.class, true);
-		if (!enabled) {
+	private ChatModel wrapWithResilience(ChatModel chatModel, Environment environment, ResilientCallExecutor executor) {
+		if (executor == null) {
 			logger.info("CodeactAgentConfig#wrapWithResilience - reason=韧性层已关闭，使用原始 ChatModel");
 			return chatModel;
 		}
-
-		double ratePerSecond = prop(environment, "app.llm.resilience.rate-per-second", 1000.0);
-		int burst = (int) prop(environment, "app.llm.resilience.burst", ratePerSecond);
-		int maxConcurrent = (int) prop(environment, "app.llm.resilience.max-concurrent", 64);
-		long bulkheadWaitMillis = (long) prop(environment, "app.llm.resilience.bulkhead-wait-millis", 200);
-		int retryMaxAttempts = (int) prop(environment, "app.llm.resilience.retry-max-attempts", 2);
-		long retryBackoffMillis = (long) prop(environment, "app.llm.resilience.retry-backoff-millis", 500);
-		long timeoutMillis = (long) prop(environment, "app.llm.resilience.timeout-millis", 0);
-		int cbWindow = (int) prop(environment, "app.llm.resilience.cb-window", 20);
-		int cbMinCalls = (int) prop(environment, "app.llm.resilience.cb-min-calls", 10);
-		double cbFailureRate = prop(environment, "app.llm.resilience.cb-failure-rate", 0.7);
-		long cbOpenMillis = (long) prop(environment, "app.llm.resilience.cb-open-millis", 30000);
-		int cbHalfOpenTrials = (int) prop(environment, "app.llm.resilience.cb-half-open-trials", 2);
-		String fallbackText = environment == null ? null
+		String fallbackText = environment == null ? "系统当前繁忙，暂时无法完成本次分析，请稍后重试。"
 				: environment.getProperty("app.llm.resilience.fallback-text",
 						"系统当前繁忙，暂时无法完成本次分析，请稍后重试。");
-
-		RetryPolicy retryPolicy = new RetryPolicy(retryMaxAttempts, retryBackoffMillis, 2.0,
-				retryBackoffMillis * 8, 0.2, ResilientCallExecutor.defaultRetryable());
-		CircuitBreaker circuitBreaker = new CircuitBreaker(cbWindow, cbMinCalls, cbFailureRate,
-				cbOpenMillis, cbHalfOpenTrials);
-		ResilientCallExecutor.Builder executorBuilder = ResilientCallExecutor.builder()
-				.name("llm")
-				.rateLimiter(new RateLimiter(ratePerSecond, burst), 200)
-				.bulkhead(maxConcurrent, bulkheadWaitMillis)
-				.circuitBreaker(circuitBreaker)
-				.retryPolicy(retryPolicy)
-				.perCallTimeoutMillis(timeoutMillis);
-		if (metrics != null) {
-			executorBuilder.metrics(metrics); // 复用容器内的指标实例，供 Prometheus 暴露
-		}
-		ResilientCallExecutor executor = executorBuilder.build();
-
-		logger.info("CodeactAgentConfig#wrapWithResilience - reason=已启用 LLM 韧性层, "
-				+ "ratePerSecond={}, maxConcurrent={}, retryMaxAttempts={}, timeoutMillis={}, cbFailureRate={}",
-				ratePerSecond, maxConcurrent, retryMaxAttempts, timeoutMillis, cbFailureRate);
+		logger.info("CodeactAgentConfig#wrapWithResilience - reason=已启用 LLM 韧性层（共享执行器）");
 		return new ResilientChatModel(chatModel, executor, fallbackText);
-	}
-
-	private double prop(Environment environment, String key, double defaultValue) {
-		if (environment == null) {
-			return defaultValue;
-		}
-		return environment.getProperty(key, Double.class, defaultValue);
 	}
 
 	private List<CodeactTool> createMcpDynamicTools(ToolCallbackProvider toolCallbackProvider) {
