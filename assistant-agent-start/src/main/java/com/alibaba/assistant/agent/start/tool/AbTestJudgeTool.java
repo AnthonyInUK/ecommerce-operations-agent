@@ -31,7 +31,7 @@ public class AbTestJudgeTool extends AbstractWarehouseQueryCodeactTool {
                 "电商运营诊断工具集合",
                 new CodeExample(
                         "判断新版结算页 A/B 实验的胜者",
-                        "result = AbTestJudgeTool(experiment_name=\"新版结算页_v2\", start_date=\"2026-05-11\", end_date=\"2026-05-17\", metric=\"conversion_rate\")\nprint(result['winner'], result['lift_pct'])",
+                        "result = AbTestJudgeTool(experiment_name=\"新版结算页_v2\", start_date=\"2018-08-28\", end_date=\"2018-08-29\", metric=\"conversion_rate\")\nprint(result['winner'], result['lift_pct'])",
                         "返回胜出分组、对照组和实验组的核心指标，以及相对提升百分比，直接输出实验结论"
                 )
         );
@@ -44,9 +44,9 @@ public class AbTestJudgeTool extends AbstractWarehouseQueryCodeactTool {
         if (experimentName == null) experimentName = "新版结算页_v2";
 
         String startStr = resolveOptionalString(params, "start_date");
-        LocalDate startDate = startStr != null ? LocalDate.parse(startStr) : LocalDate.of(2026, 5, 11);
+        LocalDate startDate = startStr != null ? LocalDate.parse(startStr) : LocalDate.of(2018, 8, 28);
         String endStr = resolveOptionalString(params, "end_date");
-        LocalDate endDate = endStr != null ? LocalDate.parse(endStr) : LocalDate.of(2026, 5, 17);
+        LocalDate endDate = endStr != null ? LocalDate.parse(endStr) : LocalDate.of(2018, 8, 29);
 
         String metric = resolveOptionalString(params, "metric");
         if (metric == null) metric = "conversion_rate";
@@ -117,9 +117,9 @@ public class AbTestJudgeTool extends AbstractWarehouseQueryCodeactTool {
 
     private double extractMetric(Map<String, Object> group, String metric) {
         return switch (metric) {
-            case "order_count" -> toDouble(group.get("total_orders"));
-            case "gmv" -> toDouble(group.get("total_gmv"));
-            default -> toDouble(group.get("avg_conversion_rate"));
+            case "order_count" -> toDouble(group.get("order_count"));
+            case "gmv" -> toDouble(group.get("gmv"));
+            default -> toDouble(group.get("conversion_rate"));
         };
     }
 

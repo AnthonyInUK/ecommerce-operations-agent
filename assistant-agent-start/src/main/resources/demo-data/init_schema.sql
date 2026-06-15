@@ -133,13 +133,12 @@ CREATE TABLE IF NOT EXISTS demo_api_error_log (
     PRIMARY KEY (log_date, api_name, http_status)
 );
 
-CREATE TABLE IF NOT EXISTS demo_ab_test_metrics (
+-- A/B 实验分组标签：把真实用户分到 A/B 组，转化率由 AbTestJudgeTool 从
+-- dwd_user_events（访问/付款行为）和 dwd_orders（订单）现场计算，而非预聚合。
+CREATE TABLE IF NOT EXISTS dwd_experiment_assignment (
     experiment_name VARCHAR(128) NOT NULL,
+    user_id VARCHAR(64) NOT NULL,
     group_id VARCHAR(8) NOT NULL,
-    stat_date DATE NOT NULL,
-    user_count INT NOT NULL DEFAULT 0,
-    order_count INT NOT NULL DEFAULT 0,
-    gmv DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    conversion_rate DECIMAL(8,6) NOT NULL DEFAULT 0,
-    PRIMARY KEY (experiment_name, group_id, stat_date)
+    assigned_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (experiment_name, user_id)
 );

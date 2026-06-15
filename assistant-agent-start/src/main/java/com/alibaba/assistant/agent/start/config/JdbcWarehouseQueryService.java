@@ -931,22 +931,45 @@ public class JdbcWarehouseQueryService {
 
     public List<Map<String, Object>> getAbTestMetrics(String experimentName, LocalDate startDate, LocalDate endDate) {
         return cachedList("abTestMetrics|" + experimentName + "|" + startDate + "|" + endDate, () ->
+            // 转化率 = 付款人数 / 访问人数，由实验分组标签 JOIN 真实行为流和订单流现场计算。
+            // 用户粒度子查询先把行为和订单聚到「每人一行」，避免 JOIN 扇出导致 GMV 重复累加。
             jdbcTemplate.queryForList(
                     """
-                    SELECT experiment_name, group_id,
-                           SUM(user_count) AS total_users,
-                           SUM(order_count) AS total_orders,
-                           SUM(gmv) AS total_gmv,
-                           CASE WHEN SUM(user_count) = 0 THEN 0
-                                ELSE CAST(SUM(order_count) AS DOUBLE) / SUM(user_count)
-                           END AS avg_conversion_rate,
+                    SELECT a.experiment_name,
+                           a.group_id,
+                           COUNT(DISTINCT a.user_id) AS assigned_users,
+                           COALESCE(SUM(ue.viewed), 0) AS exposed_users,
+                           COALESCE(SUM(ue.paid), 0) AS converted_users,
+                           CASE WHEN COALESCE(SUM(ue.viewed), 0) = 0 THEN 0
+                                ELSE CAST(COALESCE(SUM(ue.paid), 0) AS DOUBLE) / SUM(ue.viewed)
+                           END AS conversion_rate,
+                           COALESCE(SUM(od.order_count), 0) AS order_count,
+                           COALESCE(SUM(od.gmv), 0) AS gmv,
                            'demo_seed' AS source_tag
-                    FROM demo_ab_test_metrics
-                    WHERE experiment_name = ? AND stat_date BETWEEN ? AND ?
-                    GROUP BY experiment_name, group_id
-                    ORDER BY group_id ASC
+                    FROM dwd_experiment_assignment a
+                    LEFT JOIN (
+                        SELECT user_id,
+                               MAX(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END) AS viewed,
+                               MAX(CASE WHEN event_type = 'pay' THEN 1 ELSE 0 END) AS paid
+                        FROM dwd_user_events
+                        WHERE CAST(event_time AS DATE) BETWEEN ? AND ?
+                        GROUP BY user_id
+                    ) ue ON ue.user_id = a.user_id
+                    LEFT JOIN (
+                        SELECT buyer_id,
+                               COUNT(*) AS order_count,
+                               SUM(pay_amount) AS gmv
+                        FROM dwd_orders
+                        WHERE CAST(paid_at AS DATE) BETWEEN ? AND ?
+                        GROUP BY buyer_id
+                    ) od ON od.buyer_id = a.user_id
+                    WHERE a.experiment_name = ?
+                    GROUP BY a.experiment_name, a.group_id
+                    ORDER BY a.group_id ASC
                     """,
-                    experimentName, Date.valueOf(startDate), Date.valueOf(endDate)
+                    Date.valueOf(startDate), Date.valueOf(endDate),
+                    Date.valueOf(startDate), Date.valueOf(endDate),
+                    experimentName
             )
         );
     }
