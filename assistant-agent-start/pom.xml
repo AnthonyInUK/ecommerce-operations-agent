@@ -59,6 +59,12 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Prometheus registry: expose LLM resilience + SQL audit metrics at /actuator/prometheus -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- GraalVM Polyglot for Python execution (required at runtime) -->
         <dependency>
             <groupId>org.graalvm.polyglot</groupId>

@@ -11,6 +11,20 @@ spring:
 server:
   port: 8080
 
+# 可观测性：暴露健康检查、指标和 Prometheus 抓取端点。
+# LLM 韧性层指标(llm_resilience_*)和 SQL 审计指标(sql_audit_recent_count)会出现在 /actuator/prometheus。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
 assistant.agent.start:
   demo-experiences:
     enabled: false

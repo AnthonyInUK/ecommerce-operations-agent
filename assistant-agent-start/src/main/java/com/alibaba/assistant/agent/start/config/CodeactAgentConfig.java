@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.alibaba.assistant.agent.core.resilience.CircuitBreaker;
 import com.alibaba.assistant.agent.core.resilience.RateLimiter;
+import com.alibaba.assistant.agent.core.resilience.ResilienceMetrics;
 import com.alibaba.assistant.agent.core.resilience.ResilientCallExecutor;
 import com.alibaba.assistant.agent.core.resilience.ResilientChatModel;
 import com.alibaba.assistant.agent.core.resilience.RetryPolicy;
@@ -259,6 +260,7 @@ public class CodeactAgentConfig {
             @Autowired(required = false) FastIntentService fastIntentService,
             @Autowired(required = false) PromptContributionToolCallback promptContributionToolCallback,
             @Autowired(required = false) CodeactToolSignatureInjectionToolCallback codeactToolSignatureInjectionToolCallback,
+            @Autowired(required = false) ResilienceMetrics llmResilienceMetrics,
             @Autowired(required = false) @Qualifier("experienceDisclosureTools") List<ToolCallback> experienceDisclosureTools) {
 
 		logger.info("CodeactAgentConfig#grayscaleCodeactAgent - reason=创建 CodeactAgent");
@@ -343,7 +345,7 @@ public class CodeactAgentConfig {
         modelInterceptors.add(new DashScopeMultimodalEndpointInterceptor(environment));
 
 		// 给 LLM 调用套上韧性层（限流/并发隔离/熔断/重试/降级）。默认开启，可用 app.llm.resilience.enabled=false 关闭。
-		ChatModel resilientModel = wrapWithResilience(chatModel, environment);
+		ChatModel resilientModel = wrapWithResilience(chatModel, environment, llmResilienceMetrics);
 
 		CodeactAgent.CodeactAgentBuilder builder = CodeactAgent.builder()
 				.name("CodeactAgent")
@@ -409,7 +411,7 @@ public class CodeactAgentConfig {
 	 *   <li>熔断仅在持续高失败率时才触发；重试只补救瞬时错误。</li>
 	 * </ul>
 	 */
-	private ChatModel wrapWithResilience(ChatModel chatModel, Environment environment) {
+	private ChatModel wrapWithResilience(ChatModel chatModel, Environment environment, ResilienceMetrics metrics) {
 		boolean enabled = environment == null
 				|| environment.getProperty("app.llm.resilience.enabled", Boolean.class, true);
 		if (!enabled) {
@@ -437,14 +439,17 @@ public class CodeactAgentConfig {
 				retryBackoffMillis * 8, 0.2, ResilientCallExecutor.defaultRetryable());
 		CircuitBreaker circuitBreaker = new CircuitBreaker(cbWindow, cbMinCalls, cbFailureRate,
 				cbOpenMillis, cbHalfOpenTrials);
-		ResilientCallExecutor executor = ResilientCallExecutor.builder()
+		ResilientCallExecutor.Builder executorBuilder = ResilientCallExecutor.builder()
 				.name("llm")
 				.rateLimiter(new RateLimiter(ratePerSecond, burst), 200)
 				.bulkhead(maxConcurrent, bulkheadWaitMillis)
 				.circuitBreaker(circuitBreaker)
 				.retryPolicy(retryPolicy)
-				.perCallTimeoutMillis(timeoutMillis)
-				.build();
+				.perCallTimeoutMillis(timeoutMillis);
+		if (metrics != null) {
+			executorBuilder.metrics(metrics); // 复用容器内的指标实例，供 Prometheus 暴露
+		}
+		ResilientCallExecutor executor = executorBuilder.build();
 
 		logger.info("CodeactAgentConfig#wrapWithResilience - reason=已启用 LLM 韧性层, "
 				+ "ratePerSecond={}, maxConcurrent={}, retryMaxAttempts={}, timeoutMillis={}, cbFailureRate={}",

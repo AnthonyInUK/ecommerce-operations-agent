@@ -186,6 +186,12 @@ mvn test -pl assistant-agent-core -Dtest=LlmResilienceLoadTest
 
 Beyond the LLM path, the project also ships warehouse read-caching (TTL + cache-stats) and a 3-level semantic-retrieval fallback for the experience store, so a vector-store outage degrades instead of breaking the agent.
 
+**Observability & SQL transparency** (Java-native, self-hostable — no foreign SaaS):
+
+- **Metrics** — the resilience counters (`llm_resilience_*`) and SQL-audit gauge are exposed at `/actuator/prometheus` (Micrometer), ready for Prometheus + Grafana.
+- **Tracing** — the agent lifecycle (code generation, code execution, tool calls, hooks, interceptors) is instrumented with OpenTelemetry spans; point an OTLP exporter at Jaeger/Tempo to view full request traces. (For LLM-specific prompt/token/cost views, the OTel data also ingests into Langfuse — the open-source, self-hostable LangSmith alternative.)
+- **SQL transparency** — every warehouse query the agent runs (SQL, bound params, row count, latency) is captured and visible at `GET /api/ecommerce/sql-audit/recent`, so an analyst can verify exactly which query produced a given number — turning Text-to-Code from a black box into an auditable process.
+
 ## ✨ Technical Features
 
 - 🚀 **Code-as-Action**: Agent generates and executes code to complete tasks, rather than just calling predefined tools
