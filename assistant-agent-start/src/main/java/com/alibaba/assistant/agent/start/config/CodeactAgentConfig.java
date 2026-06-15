@@ -36,6 +36,11 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ModelInterceptor;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.alibaba.assistant.agent.core.resilience.CircuitBreaker;
+import com.alibaba.assistant.agent.core.resilience.RateLimiter;
+import com.alibaba.assistant.agent.core.resilience.ResilientCallExecutor;
+import com.alibaba.assistant.agent.core.resilience.ResilientChatModel;
+import com.alibaba.assistant.agent.core.resilience.RetryPolicy;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
@@ -337,11 +342,14 @@ public class CodeactAgentConfig {
         List<ModelInterceptor> modelInterceptors = new ArrayList<>();
         modelInterceptors.add(new DashScopeMultimodalEndpointInterceptor(environment));
 
+		// 给 LLM 调用套上韧性层（限流/并发隔离/熔断/重试/降级）。默认开启，可用 app.llm.resilience.enabled=false 关闭。
+		ChatModel resilientModel = wrapWithResilience(chatModel, environment);
+
 		CodeactAgent.CodeactAgentBuilder builder = CodeactAgent.builder()
 				.name("CodeactAgent")
 				.description("通过编写和执行 Python 代码来解决问题的代码驱动智能体")
 				.systemPrompt(SYSTEM_PROMPT)   // 系统角色定义（SystemMessage）
-				.model(chatModel)
+				.model(resilientModel)
 				.language(Language.PYTHON)     // CodeactAgentBuilder特有方法
 				.enableInitialCodeGen(true)
 				.allowIO(false)
@@ -392,6 +400,65 @@ public class CodeactAgentConfig {
 	 * @param toolCallbackProvider MCP ToolCallbackProvider (auto-wired by MCP Client Boot Starter)
 	 * @return MCP dynamic tools list
 	 */
+	/**
+	 * 给 ChatModel 套上韧性层。默认开启；可通过 {@code app.llm.resilience.*} 调参或关闭。
+	 *
+	 * <p>默认参数偏保守，避免影响正常 demo：
+	 * <ul>
+	 *   <li>超时默认关闭（0）—— 真实 LLM 调用本就耗时较长，误设小超时会误杀正常请求；</li>
+	 *   <li>熔断仅在持续高失败率时才触发；重试只补救瞬时错误。</li>
+	 * </ul>
+	 */
+	private ChatModel wrapWithResilience(ChatModel chatModel, Environment environment) {
+		boolean enabled = environment == null
+				|| environment.getProperty("app.llm.resilience.enabled", Boolean.class, true);
+		if (!enabled) {
+			logger.info("CodeactAgentConfig#wrapWithResilience - reason=韧性层已关闭，使用原始 ChatModel");
+			return chatModel;
+		}
+
+		double ratePerSecond = prop(environment, "app.llm.resilience.rate-per-second", 1000.0);
+		int burst = (int) prop(environment, "app.llm.resilience.burst", ratePerSecond);
+		int maxConcurrent = (int) prop(environment, "app.llm.resilience.max-concurrent", 64);
+		long bulkheadWaitMillis = (long) prop(environment, "app.llm.resilience.bulkhead-wait-millis", 200);
+		int retryMaxAttempts = (int) prop(environment, "app.llm.resilience.retry-max-attempts", 2);
+		long retryBackoffMillis = (long) prop(environment, "app.llm.resilience.retry-backoff-millis", 500);
+		long timeoutMillis = (long) prop(environment, "app.llm.resilience.timeout-millis", 0);
+		int cbWindow = (int) prop(environment, "app.llm.resilience.cb-window", 20);
+		int cbMinCalls = (int) prop(environment, "app.llm.resilience.cb-min-calls", 10);
+		double cbFailureRate = prop(environment, "app.llm.resilience.cb-failure-rate", 0.7);
+		long cbOpenMillis = (long) prop(environment, "app.llm.resilience.cb-open-millis", 30000);
+		int cbHalfOpenTrials = (int) prop(environment, "app.llm.resilience.cb-half-open-trials", 2);
+		String fallbackText = environment == null ? null
+				: environment.getProperty("app.llm.resilience.fallback-text",
+						"系统当前繁忙，暂时无法完成本次分析，请稍后重试。");
+
+		RetryPolicy retryPolicy = new RetryPolicy(retryMaxAttempts, retryBackoffMillis, 2.0,
+				retryBackoffMillis * 8, 0.2, ResilientCallExecutor.defaultRetryable());
+		CircuitBreaker circuitBreaker = new CircuitBreaker(cbWindow, cbMinCalls, cbFailureRate,
+				cbOpenMillis, cbHalfOpenTrials);
+		ResilientCallExecutor executor = ResilientCallExecutor.builder()
+				.name("llm")
+				.rateLimiter(new RateLimiter(ratePerSecond, burst), 200)
+				.bulkhead(maxConcurrent, bulkheadWaitMillis)
+				.circuitBreaker(circuitBreaker)
+				.retryPolicy(retryPolicy)
+				.perCallTimeoutMillis(timeoutMillis)
+				.build();
+
+		logger.info("CodeactAgentConfig#wrapWithResilience - reason=已启用 LLM 韧性层, "
+				+ "ratePerSecond={}, maxConcurrent={}, retryMaxAttempts={}, timeoutMillis={}, cbFailureRate={}",
+				ratePerSecond, maxConcurrent, retryMaxAttempts, timeoutMillis, cbFailureRate);
+		return new ResilientChatModel(chatModel, executor, fallbackText);
+	}
+
+	private double prop(Environment environment, String key, double defaultValue) {
+		if (environment == null) {
+			return defaultValue;
+		}
+		return environment.getProperty(key, Double.class, defaultValue);
+	}
+
 	private List<CodeactTool> createMcpDynamicTools(ToolCallbackProvider toolCallbackProvider) {
 		logger.info("CodeactAgentConfig#createMcpDynamicTools - reason=Creating MCP dynamic tools");
 
