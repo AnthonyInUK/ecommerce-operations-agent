@@ -8,6 +8,21 @@
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-1.1.0-blueviolet.svg)](https://spring.io/projects/spring-ai)
 [![GraalVM](https://img.shields.io/badge/GraalVM-Polyglot-red.svg)](https://www.graalvm.org/)
 
+## 🎯 关于这个 Fork（作品集项目）
+
+> 这是一个**作品集 fork**，构建在开源框架 [Spring AI Alibaba — AssistantAgent](https://github.com/spring-ai-alibaba/AssistantAgent) 之上。底层框架（Code-as-Action 引擎，以及 experience / learning / trigger 等模块）来自上游项目；下面列出的是我在这个 fork 中新增的工作。
+
+**我在框架之上做的：**
+
+- **电商运营异常诊断 Agent** —— 一条端到端的工作流（`发现异常 → 归因分析 → 责任分发 → 通知草稿`），而不是通用聊天机器人。包含数仓数据层（`raw / dwd / dim / ads`）、Olist 公开数据集接入，以及多步骤的 GMV 下跌归因图。
+- **12 个运营诊断工具**，全部从数仓**实时计算**（无写死答案）：GMV / 订单 / 用户 / 品类 / 漏斗 / 退款 / 区域下钻，外加三个贴合真实运营工作流的工具：
+  - **ReleaseImpactTool** —— 围绕发布日期对比前后的订单量、GMV、客单价，判断这次上线是帮了还是害了。
+  - **AbTestJudgeTool** —— 从真实行为数据聚合 A/B 实验的转化率/订单/GMV，给出胜者和相对提升幅度。
+  - **OrderAbandonmentTool** —— 从订单状态计算弃单率和支付失败率，区分「用户放弃」和「支付环节故障」。
+- **把经验与学习系统打磨到生产标准** —— 补齐遗留项（经验检索、Cron 表达式校验），增加提示词注入防护和 OpenTelemetry Span 生命周期管理，并为改动到的模块建立 **127 个测试（0 失败）**。
+
+本 fork 改动规模：**约 168 个文件，+31k / −1.1k 行**，覆盖电商层和产品化加固工作。
+
 ## 电商运营分析 Agent 扩展
 
 这个项目在 AssistantAgent 框架上补了一条电商运营分析主线。目标不是再做一个“能聊天的 BI 助手”，而是把运营分析里更关键的链路接起来：
@@ -214,8 +229,8 @@ AssistantAgent/
 ### 1. 克隆并构建
 
 ```bash
-git clone https://github.com/spring-ai-alibaba/AssistantAgent.git
-cd AssistantAgent
+git clone https://github.com/AnthonyInUK/ecommerce-operations-agent.git
+cd ecommerce-operations-agent
 mvn clean install -DskipTests
 ```
 

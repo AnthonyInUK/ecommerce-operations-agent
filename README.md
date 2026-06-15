@@ -8,6 +8,21 @@
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-1.1.0-blueviolet.svg)](https://spring.io/projects/spring-ai)
 [![GraalVM](https://img.shields.io/badge/GraalVM-Polyglot-red.svg)](https://www.graalvm.org/)
 
+## 🎯 About This Fork (Portfolio Project)
+
+> This is a **portfolio fork** built on top of the open-source [Spring AI Alibaba — AssistantAgent](https://github.com/spring-ai-alibaba/AssistantAgent) framework. The base framework (the Code-as-Action engine and the experience / learning / trigger modules) comes from the upstream project. Everything described in this section is what I added in this fork.
+
+**What I built on top of the framework:**
+
+- **Ecommerce operations anomaly agent** — an end-to-end workflow (`anomaly → root-cause analysis → ownership routing → notification draft`) instead of a generic chatbot. Includes the warehouse data layer (`raw / dwd / dim / ads`), Olist public-dataset integration, and a multi-step GMV-drop root-cause graph.
+- **12 operations-diagnosis tools**, all computed live from the warehouse (no hard-coded answers): GMV / order / user / category / funnel / refund / region drill-down, plus three tools modelled on real operations workflows:
+  - **ReleaseImpactTool** — before/after comparison of order volume, GMV and average order value around a release date, to tell whether a release helped or hurt.
+  - **AbTestJudgeTool** — aggregates an A/B experiment's conversion rate / orders / GMV from real behaviour data and declares the winner with the relative lift.
+  - **OrderAbandonmentTool** — computes order-abandonment and payment-failure rates from order-status data, to separate "users dropped off" from "the payment step broke".
+- **Hardened the experience & learning system to production standard** — implemented the remaining open items (experience search, Cron-expression validation), added a prompt-injection guard and OpenTelemetry span-lifecycle management, and built **127 tests (0 failures)** across the modules I touched.
+
+Scope of my changes in this fork: **~168 files, +31k / −1.1k lines**, covering the ecommerce layer and the productionization work.
+
 ## Ecommerce Operations Anomaly Agent
 
 This repository is currently shaped as an **Agent engineering portfolio project** with a product-facing demo. The core idea is simple: instead of building a generic chatbot, the Agent is embedded into an ecommerce operations workflow.
@@ -26,7 +41,7 @@ What the demo shows:
 
 - **Anomaly center**: business systems or monitoring rules produce an `anomaly_id`.
 - **Agent routing**: `anomaly_id -> metric_id -> analysis_route`, so different anomaly types use different analysis priorities.
-- **Tool-based evidence**: the Agent does not only answer text; it calls GMV, order, user, category, funnel, refund and business-evidence tools.
+- **Tool-based evidence**: the Agent does not only answer text; it calls GMV, order, user, category, funnel, refund, region drill-down, release-impact, A/B-test and order-abandonment tools — all computed live from the warehouse.
 - **Human-in-the-loop control**: analysts confirm whether the anomaly is valid before dispatching or sending notifications.
 - **Ownership workflow**: platform/category/growth/after-sales roles can receive, handle, record and close anomalies.
 - **Delivery channel**: Feishu notification is a delivery side effect, separated from workflow state.
@@ -238,8 +253,8 @@ If you want to understand how the ecommerce analysis Agent stays controlled when
 ### 1. Clone and Build
 
 ```bash
-git clone https://github.com/spring-ai-alibaba/AssistantAgent.git
-cd AssistantAgent
+git clone https://github.com/AnthonyInUK/ecommerce-operations-agent.git
+cd ecommerce-operations-agent
 mvn clean install -DskipTests
 ```
 
