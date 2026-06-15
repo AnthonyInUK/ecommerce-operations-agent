@@ -172,6 +172,11 @@ mvn test -pl assistant-agent-core -Dtest=LlmResilienceLoadTest
 - **指标** —— 韧性层计数（`llm_resilience_*`）和 SQL 审计仪表通过 Micrometer 暴露在 `/actuator/prometheus`。[`deploy/observability/`](deploy/observability/README.md) 提供一键起的 Prometheus + Grafana 栈（含预置仪表盘，`docker compose up -d`）。
 - **链路追踪** —— Agent 全生命周期（代码生成、代码执行、工具调用、Hook、拦截器）已用 OpenTelemetry 埋点；配置 OTLP exporter 指向 Jaeger/Tempo 即可查看完整请求链路。（想看 LLM 维度的 prompt/token/成本，OTel 数据也能接入 Langfuse —— 开源可自托管的 LangSmith 替代品。）
 - **SQL 透明** —— Agent 每次打到数仓的查询（SQL、绑定参数、行数、耗时）都会被记录，可在 `GET /api/ecommerce/sql-audit/recent` 查看，分析师能核验「某个数字到底是哪条 SQL 算出来的」，把 Text-to-Code 从黑盒变成可审计的过程。
+- **自检 / 健康探针** —— `POST /api/ecommerce/llm-selftest?times=N` 用 N 次探测调用走一遍同一个韧性执行器：线上是探活金丝雀（provider 故障时指标先于用户告警），演示时则点亮失败/重试/降级/熔断曲线。
+
+![Grafana 可观测仪表盘](images/grafana-observability.png)
+
+*模拟 provider 故障时的实时仪表盘（无有效 API key 的探测）。读图：130 次 LLM 调用中，前 10 次真打到 provider 并失败（各重试一次）；熔断器随即打开，**把剩余 120 次直接短路**（快速失败，而非重试风暴）；但 **130 次全部返回降级兜底**，零异常泄漏。左下角是 SQL 审计在记录真实数仓查询。所有数字都从 `/actuator/prometheus` 实时抓取。*
 
 ## ✨ 技术特性
 
