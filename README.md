@@ -157,6 +157,35 @@ The first deployable shape is a single Spring Boot service:
 
 Use `bash deploy/start-prod.sh` after preparing `.env` from `deploy/.env.example`.
 
+### Availability & Resilience (LLM call protection)
+
+An Agent's bottleneck and failure modes live in the **LLM provider call**, not in local CPU — so "high concurrency" here means surviving provider timeouts, 5xx/429 and cost spikes, not chasing raw QPS. Every LLM call goes through a hand-rolled, zero-dependency resilience layer (`assistant-agent-core/.../resilience`), composed in this order and for these reasons:
+
+```text
+rate limit  →  concurrency cap  →  circuit breaker  →  retry (backoff+jitter)  →  per-call timeout  →  LLM call
+(cost/quota)   (protect threads)   (fast-fail bad provider)  (recover transient)   (bound each attempt)
+```
+
+- **Circuit breaker** — CLOSED / OPEN / HALF_OPEN state machine with a count-based sliding-window failure rate and half-open probing. When the provider is unhealthy it fast-fails instead of retry-storming, then probes with a little traffic before recovering.
+- **Retry with exponential backoff + jitter** — only for transient/retryable errors; jitter avoids synchronized retry storms.
+- **Token-bucket rate limiter + bulkhead** — cap request rate (cost/quota) and in-flight concurrency.
+- **Graceful degradation** — when a call is shed or ultimately fails, the agent returns a readable fallback response instead of throwing.
+
+This is wired in via `app.llm.resilience.*` (on by default; per-call timeout off by default since real LLM calls are legitimately long).
+
+A reproducible load harness drives concurrent traffic through a fake model (no API cost) and prints real numbers:
+
+```bash
+mvn test -pl assistant-agent-core -Dtest=LlmResilienceLoadTest
+```
+
+| Scenario | Result |
+|----------|--------|
+| Healthy (provider all-success) | ~3,900 QPS, p50 3.8ms / p95 5.0ms / p99 8.9ms — thin wrapper overhead |
+| Degraded (50% provider failure) | circuit breaker opens and **short-circuits ~900 requests** (fast-fail, not retry-storm); every failure gets a graceful fallback, zero leaked exceptions |
+
+Beyond the LLM path, the project also ships warehouse read-caching (TTL + cache-stats) and a 3-level semantic-retrieval fallback for the experience store, so a vector-store outage degrades instead of breaking the agent.
+
 ## ✨ Technical Features
 
 - 🚀 **Code-as-Action**: Agent generates and executes code to complete tasks, rather than just calling predefined tools
