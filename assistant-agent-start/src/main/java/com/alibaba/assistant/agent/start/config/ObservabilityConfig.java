@@ -28,7 +28,7 @@ public class ObservabilityConfig {
     @Bean
     public MeterBinder llmResilienceMeterBinder(ResilienceMetrics m) {
         return registry -> {
-            counter(registry, "llm.resilience.total", m, ResilienceMetrics::getTotalCalls);
+            counter(registry, "llm.resilience.calls", m, ResilienceMetrics::getTotalCalls);
             counter(registry, "llm.resilience.success", m, ResilienceMetrics::getSuccess);
             counter(registry, "llm.resilience.failure", m, ResilienceMetrics::getFailure);
             counter(registry, "llm.resilience.timeout", m, ResilienceMetrics::getTimeout);

@@ -1,0 +1,12 @@
+# Prometheus 抓取配置：定期拉取 Assistant Agent 的 /actuator/prometheus 指标。
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'assistant-agent'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      # 应用跑在宿主机上（mvn spring-boot:run）。容器内通过 host.docker.internal 访问宿主机。
+      # 默认端口 8080；若用 README 的 demo 命令(--server.port=18080)，把这里改成 18080。
+      - targets: ['host.docker.internal:8080']

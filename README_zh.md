@@ -169,7 +169,7 @@ mvn test -pl assistant-agent-core -Dtest=LlmResilienceLoadTest
 
 **可观测性与 SQL 透明（Java 原生、可自托管，不依赖外国 SaaS）：**
 
-- **指标** —— 韧性层计数（`llm_resilience_*`）和 SQL 审计仪表通过 Micrometer 暴露在 `/actuator/prometheus`，可直接对接 Prometheus + Grafana。
+- **指标** —— 韧性层计数（`llm_resilience_*`）和 SQL 审计仪表通过 Micrometer 暴露在 `/actuator/prometheus`。[`deploy/observability/`](deploy/observability/README.md) 提供一键起的 Prometheus + Grafana 栈（含预置仪表盘，`docker compose up -d`）。
 - **链路追踪** —— Agent 全生命周期（代码生成、代码执行、工具调用、Hook、拦截器）已用 OpenTelemetry 埋点；配置 OTLP exporter 指向 Jaeger/Tempo 即可查看完整请求链路。（想看 LLM 维度的 prompt/token/成本，OTel 数据也能接入 Langfuse —— 开源可自托管的 LangSmith 替代品。）
 - **SQL 透明** —— Agent 每次打到数仓的查询（SQL、绑定参数、行数、耗时）都会被记录，可在 `GET /api/ecommerce/sql-audit/recent` 查看，分析师能核验「某个数字到底是哪条 SQL 算出来的」，把 Text-to-Code 从黑盒变成可审计的过程。
 

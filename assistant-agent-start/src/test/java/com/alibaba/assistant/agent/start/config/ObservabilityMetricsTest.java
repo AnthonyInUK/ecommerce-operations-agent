@@ -30,7 +30,7 @@ class ObservabilityMetricsTest {
         MeterBinder binder = config.llmResilienceMeterBinder(metrics);
         binder.bindTo(registry);
 
-        assertEquals(3.0, registry.get("llm.resilience.total").functionCounter().count(), 0.001);
+        assertEquals(3.0, registry.get("llm.resilience.calls").functionCounter().count(), 0.001);
         assertEquals(2.0, registry.get("llm.resilience.success").functionCounter().count(), 0.001);
         assertEquals(1.0, registry.get("llm.resilience.failure").functionCounter().count(), 0.001);
         assertEquals(1.0, registry.get("llm.resilience.fallback").functionCounter().count(), 0.001);

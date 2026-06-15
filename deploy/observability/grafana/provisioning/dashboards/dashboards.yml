@@ -1,0 +1,11 @@
+# 自动加载 /var/lib/grafana/dashboards 下的仪表盘 JSON。
+apiVersion: 1
+providers:
+  - name: 'assistant-agent'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
