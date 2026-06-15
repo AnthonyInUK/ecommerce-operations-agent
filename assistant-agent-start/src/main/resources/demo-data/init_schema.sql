@@ -122,3 +122,24 @@ CREATE TABLE IF NOT EXISTS ads_business_evidence_daily (
     source_tag VARCHAR(64) NOT NULL,
     PRIMARY KEY (stat_date, region_name, category_l1, evidence_domain, product_id, seller_id)
 );
+
+CREATE TABLE IF NOT EXISTS demo_api_error_log (
+    log_date DATE NOT NULL,
+    api_name VARCHAR(128) NOT NULL,
+    http_status INT NOT NULL,
+    error_count INT NOT NULL DEFAULT 0,
+    total_request_count INT NOT NULL DEFAULT 0,
+    error_rate DECIMAL(8,6) NOT NULL DEFAULT 0,
+    PRIMARY KEY (log_date, api_name, http_status)
+);
+
+CREATE TABLE IF NOT EXISTS demo_ab_test_metrics (
+    experiment_name VARCHAR(128) NOT NULL,
+    group_id VARCHAR(8) NOT NULL,
+    stat_date DATE NOT NULL,
+    user_count INT NOT NULL DEFAULT 0,
+    order_count INT NOT NULL DEFAULT 0,
+    gmv DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    conversion_rate DECIMAL(8,6) NOT NULL DEFAULT 0,
+    PRIMARY KEY (experiment_name, group_id, stat_date)
+);

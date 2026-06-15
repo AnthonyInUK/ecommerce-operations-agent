@@ -835,6 +835,122 @@ public class JdbcWarehouseQueryService {
         return shouldUseOlistAnalytics() ? "olist_public_dataset" : "demo_seed";
     }
 
+    public List<Map<String, Object>> getApiErrorMetrics(LocalDate startDate, LocalDate endDate, String apiName) {
+        LocalDate safeEnd = endDate == null ? startDate : endDate;
+        return cachedList("apiErrorMetrics|" + startDate + "|" + safeEnd + "|" + normalize(apiName), () -> {
+            StringBuilder sql = new StringBuilder(
+                    """
+                    SELECT log_date, api_name, http_status, error_count, total_request_count, error_rate,
+                           'demo_seed' AS source_tag
+                    FROM demo_api_error_log
+                    WHERE log_date BETWEEN ? AND ?
+                    """
+            );
+            List<Object> args = new ArrayList<>();
+            args.add(Date.valueOf(startDate));
+            args.add(Date.valueOf(safeEnd));
+            if (apiName != null && !apiName.isBlank()) {
+                sql.append(" AND api_name = ?");
+                args.add(apiName);
+            }
+            sql.append(" ORDER BY log_date ASC, api_name ASC, http_status ASC");
+            return jdbcTemplate.queryForList(sql.toString(), args.toArray());
+        });
+    }
+
+    public List<Map<String, Object>> getOrderRangeSummary(LocalDate startDate, LocalDate endDate,
+                                                           String regionName, String categoryName) {
+        return cachedList("orderRangeSummary|" + startDate + "|" + endDate + "|"
+                + normalize(regionName) + "|" + normalize(categoryName), () -> {
+            if (shouldUseOlistAnalytics() && (categoryName == null || categoryName.isBlank())) {
+                StringBuilder sql = new StringBuilder(
+                        """
+                        SELECT ? AS period_start, ? AS period_end,
+                               COUNT(*) AS order_count,
+                               SUM(CASE WHEN COALESCE(paid_amount, 0) > 0 THEN 1 ELSE 0 END) AS paid_order_count,
+                               SUM(COALESCE(paid_amount, 0)) AS gmv,
+                               CASE WHEN COUNT(*) = 0 THEN 0
+                                    ELSE SUM(COALESCE(paid_amount, 0)) / COUNT(*)
+                               END AS avg_order_value,
+                               COUNT(DISTINCT CAST(order_purchase_timestamp AS DATE)) AS day_count,
+                               'olist_public_dataset' AS source_tag
+                        FROM dwd_olist_orders
+                        WHERE CAST(order_purchase_timestamp AS DATE) BETWEEN ? AND ?
+                        """
+                );
+                List<Object> args = new ArrayList<>();
+                args.add(startDate.toString());
+                args.add(endDate.toString());
+                args.add(Date.valueOf(startDate));
+                args.add(Date.valueOf(endDate));
+                if (regionName != null && !regionName.isBlank()) {
+                    sql.append("""
+                             AND customer_state IN (
+                                 SELECT state_code FROM dim_olist_regions WHERE region_name_seed = ?
+                             )
+                            """);
+                    args.add(regionName);
+                }
+                List<Map<String, Object>> olistRows = jdbcTemplate.queryForList(sql.toString(), args.toArray());
+                if (!olistRows.isEmpty() && numberValue(olistRows.get(0).get("order_count")) > 0) {
+                    return olistRows;
+                }
+            }
+
+            StringBuilder sql = new StringBuilder(
+                    """
+                    SELECT ? AS period_start, ? AS period_end,
+                           COUNT(*) AS order_count,
+                           SUM(CASE WHEN order_status IN ('PAID', 'COMPLETED') THEN 1 ELSE 0 END) AS paid_order_count,
+                           SUM(pay_amount) AS gmv,
+                           CASE WHEN COUNT(*) = 0 THEN 0
+                                ELSE SUM(pay_amount) / COUNT(*)
+                           END AS avg_order_value,
+                           COUNT(DISTINCT CAST(paid_at AS DATE)) AS day_count,
+                           'demo_seed' AS source_tag
+                    FROM dwd_orders
+                    WHERE CAST(paid_at AS DATE) BETWEEN ? AND ?
+                    """
+            );
+            List<Object> args = new ArrayList<>();
+            args.add(startDate.toString());
+            args.add(endDate.toString());
+            args.add(Date.valueOf(startDate));
+            args.add(Date.valueOf(endDate));
+            if (regionName != null && !regionName.isBlank()) {
+                sql.append(" AND region_name = ?");
+                args.add(regionName);
+            }
+            if (categoryName != null && !categoryName.isBlank()) {
+                sql.append(" AND category_l1 = ?");
+                args.add(categoryName);
+            }
+            return jdbcTemplate.queryForList(sql.toString(), args.toArray());
+        });
+    }
+
+    public List<Map<String, Object>> getAbTestMetrics(String experimentName, LocalDate startDate, LocalDate endDate) {
+        return cachedList("abTestMetrics|" + experimentName + "|" + startDate + "|" + endDate, () ->
+            jdbcTemplate.queryForList(
+                    """
+                    SELECT experiment_name, group_id,
+                           SUM(user_count) AS total_users,
+                           SUM(order_count) AS total_orders,
+                           SUM(gmv) AS total_gmv,
+                           CASE WHEN SUM(user_count) = 0 THEN 0
+                                ELSE CAST(SUM(order_count) AS DOUBLE) / SUM(user_count)
+                           END AS avg_conversion_rate,
+                           'demo_seed' AS source_tag
+                    FROM demo_ab_test_metrics
+                    WHERE experiment_name = ? AND stat_date BETWEEN ? AND ?
+                    GROUP BY experiment_name, group_id
+                    ORDER BY group_id ASC
+                    """,
+                    experimentName, Date.valueOf(startDate), Date.valueOf(endDate)
+            )
+        );
+    }
+
     private List<Map<String, Object>> cachedList(String cacheKey, Supplier<List<Map<String, Object>>> loader) {
         if (!properties.isReadCacheEnabled() || properties.getReadCacheTtlSeconds() <= 0) {
             cacheSkips.incrementAndGet();

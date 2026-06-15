@@ -66,6 +66,58 @@ INSERT INTO ads_campaign_daily (stat_date, campaign_name, channel_code, gmv, con
 (DATE '2026-05-17', '日常投放', 'organic', 760.00, 0.0610, 2.5000),
 (DATE '2026-05-17', '达人专场', 'live_stream', 180.00, 0.0750, 1.8500);
 
+-- API error rate demo data: two APIs, 8 days, with a spike on 2026-05-14 simulating a bad release
+INSERT INTO demo_api_error_log (log_date, api_name, http_status, error_count, total_request_count, error_rate) VALUES
+(DATE '2026-05-10', '/api/checkout/submit', 400, 12, 2400, 0.005000),
+(DATE '2026-05-11', '/api/checkout/submit', 400, 11, 2350, 0.004681),
+(DATE '2026-05-12', '/api/checkout/submit', 400, 13, 2420, 0.005372),
+(DATE '2026-05-13', '/api/checkout/submit', 400, 10, 2380, 0.004202),
+(DATE '2026-05-14', '/api/checkout/submit', 400, 192, 2400, 0.080000),
+(DATE '2026-05-15', '/api/checkout/submit', 400, 86, 2350, 0.036596),
+(DATE '2026-05-16', '/api/checkout/submit', 400, 28, 2460, 0.011382),
+(DATE '2026-05-17', '/api/checkout/submit', 400, 14, 2410, 0.005809),
+(DATE '2026-05-10', '/api/checkout/submit', 500, 3, 2400, 0.001250),
+(DATE '2026-05-11', '/api/checkout/submit', 500, 2, 2350, 0.000851),
+(DATE '2026-05-12', '/api/checkout/submit', 500, 4, 2420, 0.001653),
+(DATE '2026-05-13', '/api/checkout/submit', 500, 3, 2380, 0.001261),
+(DATE '2026-05-14', '/api/checkout/submit', 500, 98, 2400, 0.040833),
+(DATE '2026-05-15', '/api/checkout/submit', 500, 43, 2350, 0.018298),
+(DATE '2026-05-16', '/api/checkout/submit', 500, 9, 2460, 0.003659),
+(DATE '2026-05-17', '/api/checkout/submit', 500, 4, 2410, 0.001660),
+(DATE '2026-05-10', '/api/payment/confirm', 400, 7, 2200, 0.003182),
+(DATE '2026-05-11', '/api/payment/confirm', 400, 8, 2180, 0.003670),
+(DATE '2026-05-12', '/api/payment/confirm', 400, 6, 2250, 0.002667),
+(DATE '2026-05-13', '/api/payment/confirm', 400, 9, 2210, 0.004072),
+(DATE '2026-05-14', '/api/payment/confirm', 400, 110, 2200, 0.050000),
+(DATE '2026-05-15', '/api/payment/confirm', 400, 52, 2180, 0.023853),
+(DATE '2026-05-16', '/api/payment/confirm', 400, 16, 2240, 0.007143),
+(DATE '2026-05-17', '/api/payment/confirm', 400, 8, 2200, 0.003636),
+(DATE '2026-05-10', '/api/payment/confirm', 500, 2, 2200, 0.000909),
+(DATE '2026-05-11', '/api/payment/confirm', 500, 1, 2180, 0.000459),
+(DATE '2026-05-12', '/api/payment/confirm', 500, 2, 2250, 0.000889),
+(DATE '2026-05-13', '/api/payment/confirm', 500, 3, 2210, 0.001357),
+(DATE '2026-05-14', '/api/payment/confirm', 500, 55, 2200, 0.025000),
+(DATE '2026-05-15', '/api/payment/confirm', 500, 26, 2180, 0.011927),
+(DATE '2026-05-16', '/api/payment/confirm', 500, 5, 2240, 0.002232),
+(DATE '2026-05-17', '/api/payment/confirm', 500, 3, 2200, 0.001364);
+
+-- A/B test metrics: "新版结算页_v2" experiment, group B (new flow) outperforms group A (control)
+INSERT INTO demo_ab_test_metrics (experiment_name, group_id, stat_date, user_count, order_count, gmv, conversion_rate) VALUES
+('新版结算页_v2', 'A', DATE '2026-05-11', 1180, 84, 33600.00, 0.071186),
+('新版结算页_v2', 'A', DATE '2026-05-12', 1205, 86, 34400.00, 0.071369),
+('新版结算页_v2', 'A', DATE '2026-05-13', 1190, 85, 34000.00, 0.071429),
+('新版结算页_v2', 'A', DATE '2026-05-14', 1215, 88, 35200.00, 0.072428),
+('新版结算页_v2', 'A', DATE '2026-05-15', 1198, 86, 34400.00, 0.071786),
+('新版结算页_v2', 'A', DATE '2026-05-16', 1210, 87, 34800.00, 0.071901),
+('新版结算页_v2', 'A', DATE '2026-05-17', 1202, 86, 34400.00, 0.071548),
+('新版结算页_v2', 'B', DATE '2026-05-11', 1183, 102, 40800.00, 0.086221),
+('新版结算页_v2', 'B', DATE '2026-05-12', 1197, 104, 41600.00, 0.086884),
+('新版结算页_v2', 'B', DATE '2026-05-13', 1188, 101, 40400.00, 0.085017),
+('新版结算页_v2', 'B', DATE '2026-05-14', 1201, 105, 42000.00, 0.087427),
+('新版结算页_v2', 'B', DATE '2026-05-15', 1195, 103, 41200.00, 0.086192),
+('新版结算页_v2', 'B', DATE '2026-05-16', 1208, 106, 42400.00, 0.087748),
+('新版结算页_v2', 'B', DATE '2026-05-17', 1193, 103, 41200.00, 0.086337);
+
 INSERT INTO raw_orders (order_id, buyer_id, city_name, province_name, category_l1, merchant_name, channel_code, campaign_name, pay_amount, refund_amount, order_status, paid_at) VALUES
 ('o2001', 'u201', '上海', '上海', '家电', '优家电器', 'organic', '818大促', 1200.00, 0.00, 'PAID', TIMESTAMP '2018-08-28 09:10:00'),
 ('o2002', 'u202', '杭州', '浙江', '家电', '优家电器', 'ad_feed', '818大促', 1000.00, 0.00, 'PAID', TIMESTAMP '2018-08-28 10:40:00'),
