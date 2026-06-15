@@ -835,25 +835,46 @@ public class JdbcWarehouseQueryService {
         return shouldUseOlistAnalytics() ? "olist_public_dataset" : "demo_seed";
     }
 
-    public List<Map<String, Object>> getApiErrorMetrics(LocalDate startDate, LocalDate endDate, String apiName) {
+    public List<Map<String, Object>> getOrderAbandonmentMetrics(LocalDate startDate, LocalDate endDate,
+                                                                String regionName, String categoryName) {
         LocalDate safeEnd = endDate == null ? startDate : endDate;
-        return cachedList("apiErrorMetrics|" + startDate + "|" + safeEnd + "|" + normalize(apiName), () -> {
+        return cachedList("orderAbandonment|" + startDate + "|" + safeEnd + "|"
+                + normalize(regionName) + "|" + normalize(categoryName), () -> {
+            // 业务口径（全部从 dwd_orders 的订单状态现场计算）：
+            //   弃单率     = 未成功支付的订单 / 全部下单
+            //   支付失败率 = 支付失败的订单 / 发起过支付的订单（CANCELED 视为未发起支付，不计入分母）
             StringBuilder sql = new StringBuilder(
                     """
-                    SELECT log_date, api_name, http_status, error_count, total_request_count, error_rate,
+                    SELECT CAST(paid_at AS DATE) AS stat_date,
+                           COUNT(*) AS total_orders,
+                           SUM(CASE WHEN order_status IN ('PAID', 'COMPLETED') THEN 1 ELSE 0 END) AS paid_orders,
+                           SUM(CASE WHEN order_status = 'PAYMENT_FAILED' THEN 1 ELSE 0 END) AS payment_failed_orders,
+                           SUM(CASE WHEN order_status = 'CANCELED' THEN 1 ELSE 0 END) AS canceled_orders,
+                           CASE WHEN COUNT(*) = 0 THEN 0
+                                ELSE CAST(SUM(CASE WHEN order_status NOT IN ('PAID', 'COMPLETED') THEN 1 ELSE 0 END) AS DOUBLE)
+                                     / COUNT(*)
+                           END AS abandonment_rate,
+                           CASE WHEN SUM(CASE WHEN order_status IN ('PAID', 'COMPLETED', 'PAYMENT_FAILED') THEN 1 ELSE 0 END) = 0 THEN 0
+                                ELSE CAST(SUM(CASE WHEN order_status = 'PAYMENT_FAILED' THEN 1 ELSE 0 END) AS DOUBLE)
+                                     / SUM(CASE WHEN order_status IN ('PAID', 'COMPLETED', 'PAYMENT_FAILED') THEN 1 ELSE 0 END)
+                           END AS payment_failure_rate,
                            'demo_seed' AS source_tag
-                    FROM demo_api_error_log
-                    WHERE log_date BETWEEN ? AND ?
+                    FROM dwd_orders
+                    WHERE CAST(paid_at AS DATE) BETWEEN ? AND ?
                     """
             );
             List<Object> args = new ArrayList<>();
             args.add(Date.valueOf(startDate));
             args.add(Date.valueOf(safeEnd));
-            if (apiName != null && !apiName.isBlank()) {
-                sql.append(" AND api_name = ?");
-                args.add(apiName);
+            if (regionName != null && !regionName.isBlank()) {
+                sql.append(" AND region_name = ?");
+                args.add(regionName);
             }
-            sql.append(" ORDER BY log_date ASC, api_name ASC, http_status ASC");
+            if (categoryName != null && !categoryName.isBlank()) {
+                sql.append(" AND category_l1 = ?");
+                args.add(categoryName);
+            }
+            sql.append(" GROUP BY CAST(paid_at AS DATE) ORDER BY stat_date ASC");
             return jdbcTemplate.queryForList(sql.toString(), args.toArray());
         });
     }

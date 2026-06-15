@@ -66,40 +66,29 @@ INSERT INTO ads_campaign_daily (stat_date, campaign_name, channel_code, gmv, con
 (DATE '2026-05-17', '日常投放', 'organic', 760.00, 0.0610, 2.5000),
 (DATE '2026-05-17', '达人专场', 'live_stream', 180.00, 0.0750, 1.8500);
 
--- API error rate demo data: two APIs, 8 days, with a spike on 2026-05-14 simulating a bad release
-INSERT INTO demo_api_error_log (log_date, api_name, http_status, error_count, total_request_count, error_rate) VALUES
-(DATE '2026-05-10', '/api/checkout/submit', 400, 12, 2400, 0.005000),
-(DATE '2026-05-11', '/api/checkout/submit', 400, 11, 2350, 0.004681),
-(DATE '2026-05-12', '/api/checkout/submit', 400, 13, 2420, 0.005372),
-(DATE '2026-05-13', '/api/checkout/submit', 400, 10, 2380, 0.004202),
-(DATE '2026-05-14', '/api/checkout/submit', 400, 192, 2400, 0.080000),
-(DATE '2026-05-15', '/api/checkout/submit', 400, 86, 2350, 0.036596),
-(DATE '2026-05-16', '/api/checkout/submit', 400, 28, 2460, 0.011382),
-(DATE '2026-05-17', '/api/checkout/submit', 400, 14, 2410, 0.005809),
-(DATE '2026-05-10', '/api/checkout/submit', 500, 3, 2400, 0.001250),
-(DATE '2026-05-11', '/api/checkout/submit', 500, 2, 2350, 0.000851),
-(DATE '2026-05-12', '/api/checkout/submit', 500, 4, 2420, 0.001653),
-(DATE '2026-05-13', '/api/checkout/submit', 500, 3, 2380, 0.001261),
-(DATE '2026-05-14', '/api/checkout/submit', 500, 98, 2400, 0.040833),
-(DATE '2026-05-15', '/api/checkout/submit', 500, 43, 2350, 0.018298),
-(DATE '2026-05-16', '/api/checkout/submit', 500, 9, 2460, 0.003659),
-(DATE '2026-05-17', '/api/checkout/submit', 500, 4, 2410, 0.001660),
-(DATE '2026-05-10', '/api/payment/confirm', 400, 7, 2200, 0.003182),
-(DATE '2026-05-11', '/api/payment/confirm', 400, 8, 2180, 0.003670),
-(DATE '2026-05-12', '/api/payment/confirm', 400, 6, 2250, 0.002667),
-(DATE '2026-05-13', '/api/payment/confirm', 400, 9, 2210, 0.004072),
-(DATE '2026-05-14', '/api/payment/confirm', 400, 110, 2200, 0.050000),
-(DATE '2026-05-15', '/api/payment/confirm', 400, 52, 2180, 0.023853),
-(DATE '2026-05-16', '/api/payment/confirm', 400, 16, 2240, 0.007143),
-(DATE '2026-05-17', '/api/payment/confirm', 400, 8, 2200, 0.003636),
-(DATE '2026-05-10', '/api/payment/confirm', 500, 2, 2200, 0.000909),
-(DATE '2026-05-11', '/api/payment/confirm', 500, 1, 2180, 0.000459),
-(DATE '2026-05-12', '/api/payment/confirm', 500, 2, 2250, 0.000889),
-(DATE '2026-05-13', '/api/payment/confirm', 500, 3, 2210, 0.001357),
-(DATE '2026-05-14', '/api/payment/confirm', 500, 55, 2200, 0.025000),
-(DATE '2026-05-15', '/api/payment/confirm', 500, 26, 2180, 0.011927),
-(DATE '2026-05-16', '/api/payment/confirm', 500, 5, 2240, 0.002232),
-(DATE '2026-05-17', '/api/payment/confirm', 500, 3, 2200, 0.001364);
+-- 订单生命周期 demo 数据：含「支付成功 / 支付失败 / 创建后放弃」三种状态，
+-- 供 OrderAbandonmentTool 从 dwd_orders 现场计算弃单率和支付失败率。
+-- paid_at 在未支付订单上表示「下单/支付发起时间」。
+-- 故事线：8-30 支付网关异常（弃单率 40%、支付失败率 25%）→ 8-31 修复后回落（均 12.5%）。
+INSERT INTO dwd_orders (order_id, buyer_id, region_name, city_name, category_l1, merchant_name, channel_code, campaign_name, pay_amount, refund_amount, order_status, paid_at) VALUES
+('o3001', 'u301', '华东', '上海', '家电', '优家电器', 'organic', '日常投放', 800.00, 0.00, 'PAID', TIMESTAMP '2018-08-30 09:00:00'),
+('o3002', 'u302', '华东', '杭州', '女装', '衣尚旗舰店', 'ad_feed', '日常投放', 350.00, 0.00, 'PAID', TIMESTAMP '2018-08-30 10:00:00'),
+('o3003', 'u303', '华东', '南京', '美妆', '美颜工坊', 'organic', '日常投放', 220.00, 0.00, 'COMPLETED', TIMESTAMP '2018-08-30 11:00:00'),
+('o3004', 'u304', '华东', '上海', '家电', '优家电器', 'organic', '日常投放', 1100.00, 0.00, 'PAID', TIMESTAMP '2018-08-30 12:00:00'),
+('o3005', 'u305', '华东', '苏州', '家居', '宜居生活馆', 'organic', '日常投放', 480.00, 0.00, 'PAID', TIMESTAMP '2018-08-30 13:00:00'),
+('o3006', 'u306', '华东', '合肥', '女装', '衣尚旗舰店', 'live_stream', '日常投放', 300.00, 0.00, 'COMPLETED', TIMESTAMP '2018-08-30 14:00:00'),
+('o3007', 'u307', '华东', '上海', '家电', '优家电器', 'ad_feed', '日常投放', 0.00, 0.00, 'PAYMENT_FAILED', TIMESTAMP '2018-08-30 15:00:00'),
+('o3008', 'u308', '华东', '杭州', '美妆', '美颜工坊', 'organic', '日常投放', 0.00, 0.00, 'PAYMENT_FAILED', TIMESTAMP '2018-08-30 16:00:00'),
+('o3009', 'u309', '华东', '南京', '女装', '衣尚旗舰店', 'organic', '日常投放', 0.00, 0.00, 'CANCELED', TIMESTAMP '2018-08-30 17:00:00'),
+('o3010', 'u310', '华东', '上海', '家居', '宜居生活馆', 'ad_feed', '日常投放', 0.00, 0.00, 'CANCELED', TIMESTAMP '2018-08-30 18:00:00'),
+('o3011', 'u311', '华东', '上海', '家电', '优家电器', 'organic', '日常投放', 900.00, 0.00, 'PAID', TIMESTAMP '2018-08-31 09:00:00'),
+('o3012', 'u312', '华东', '杭州', '女装', '衣尚旗舰店', 'organic', '日常投放', 400.00, 0.00, 'PAID', TIMESTAMP '2018-08-31 10:00:00'),
+('o3013', 'u313', '华东', '南京', '美妆', '美颜工坊', 'ad_feed', '日常投放', 250.00, 0.00, 'COMPLETED', TIMESTAMP '2018-08-31 11:00:00'),
+('o3014', 'u314', '华东', '上海', '家电', '优家电器', 'organic', '日常投放', 1200.00, 0.00, 'PAID', TIMESTAMP '2018-08-31 12:00:00'),
+('o3015', 'u315', '华东', '苏州', '家居', '宜居生活馆', 'organic', '日常投放', 520.00, 0.00, 'PAID', TIMESTAMP '2018-08-31 13:00:00'),
+('o3016', 'u316', '华东', '合肥', '女装', '衣尚旗舰店', 'live_stream', '日常投放', 320.00, 0.00, 'PAID', TIMESTAMP '2018-08-31 14:00:00'),
+('o3017', 'u317', '华东', '杭州', '美妆', '美颜工坊', 'organic', '日常投放', 180.00, 0.00, 'COMPLETED', TIMESTAMP '2018-08-31 15:00:00'),
+('o3018', 'u318', '华东', '上海', '家电', '优家电器', 'ad_feed', '日常投放', 0.00, 0.00, 'PAYMENT_FAILED', TIMESTAMP '2018-08-31 16:00:00');
 
 -- A/B 实验「新版结算页_v2」用户分组标签（基于 2018-08-28~29 的真实行为用户）。
 -- 转化率不在这里预写，而是由工具用「付款人数 ÷ 访问人数」从行为数据现场计算：

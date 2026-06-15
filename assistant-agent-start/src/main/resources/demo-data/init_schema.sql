@@ -123,16 +123,6 @@ CREATE TABLE IF NOT EXISTS ads_business_evidence_daily (
     PRIMARY KEY (stat_date, region_name, category_l1, evidence_domain, product_id, seller_id)
 );
 
-CREATE TABLE IF NOT EXISTS demo_api_error_log (
-    log_date DATE NOT NULL,
-    api_name VARCHAR(128) NOT NULL,
-    http_status INT NOT NULL,
-    error_count INT NOT NULL DEFAULT 0,
-    total_request_count INT NOT NULL DEFAULT 0,
-    error_rate DECIMAL(8,6) NOT NULL DEFAULT 0,
-    PRIMARY KEY (log_date, api_name, http_status)
-);
-
 -- A/B 实验分组标签：把真实用户分到 A/B 组，转化率由 AbTestJudgeTool 从
 -- dwd_user_events（访问/付款行为）和 dwd_orders（订单）现场计算，而非预聚合。
 CREATE TABLE IF NOT EXISTS dwd_experiment_assignment (
