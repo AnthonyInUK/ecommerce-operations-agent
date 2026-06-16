@@ -69,6 +69,10 @@ This project uses **Text-to-Code / Code-as-Action** instead of only Text-to-SQL:
 - **Operational triggers** proactively run the same analysis without waiting for a user question.
 - **Verified cases and runtime bad cases** keep the workflow regression-testable.
 
+Two complementary paths sit behind this. High-frequency operational questions take a **deterministic fast path** (rule-based intent routing + direct tool calls — low latency, low cost, reproducible, no LLM key needed). Open-ended questions take the **LLM-driven Code-as-Action path** via `POST /api/ecommerce/agent-run`: the model writes Python and runs it in the GraalVM sandbox. Below is a real run (DeepSeek, via the OpenAI-compatible API) — the model generated the function and the sandbox returned `2550`; the whole LLM call is wrapped by the resilience layer.
+
+![LLM Code-as-Action real run](images/codeact-deepseek.png)
+
 ### Core Demo Flow
 
 Open the operations console:

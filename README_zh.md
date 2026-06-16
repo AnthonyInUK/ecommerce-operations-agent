@@ -44,6 +44,10 @@
 - **主动巡检**：走 trigger，不等人问，自动发现异常。
 - **评测闭环**：verified cases / runtime bad cases 防止链路退化。
 
+背后是两条互补的路径：高频运营问题走**确定性快路径**（规则路由 + 直接调工具——低延迟、低成本、可复现、无需大模型 key）；开放式问题走**大模型驱动的 Code-as-Action 路径**（`POST /api/ecommerce/agent-run`）——模型自己写 Python 并在 GraalVM 沙箱中执行。下图是一次真实运行（DeepSeek，经 OpenAI 兼容 API）：模型生成函数、沙箱返回 `2550`，整条 LLM 调用由韧性层包装。
+
+![LLM Code-as-Action 真实运行](images/codeact-deepseek.png)
+
 ### 核心演示链路
 
 打开页面：
