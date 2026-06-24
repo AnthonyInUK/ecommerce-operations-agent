@@ -1,0 +1,25 @@
+# docker profile：operational 库切到真实 MySQL（缓存 Redis 见 Layer 4）。
+# 配套基础设施：deploy/backend/docker-compose.yml
+# 数仓(app.datasource) 仍走默认 H2，不在此覆盖。
+spring:
+  datasource:
+    url: jdbc:mysql://${OPS_MYSQL_HOST:localhost}:${OPS_MYSQL_PORT:3306}/${OPS_MYSQL_DB:assistant_ops}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8
+    username: ${OPS_MYSQL_USER:ops}
+    password: ${OPS_MYSQL_PASSWORD:ops_pass}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # 高频查询缓存切到 Redis（带 TTL，可跨实例共享）。
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${CACHE_TTL_MS:120000}
+  data:
+    redis:
+      host: ${OPS_REDIS_HOST:localhost}
+      port: ${OPS_REDIS_PORT:6379}
+
+# 部署态启用 API Key 鉴权：逗号分隔，由环境变量注入（不配则不强制）。
+app:
+  security:
+    enabled: true
+    api-keys: ${APP_API_KEYS:}

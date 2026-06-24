@@ -1,0 +1,41 @@
+# 本地后端依赖：operational 库(MySQL) + 高频查询缓存(Redis)。
+# 这是"开发/演示用基础设施"，与应用本体的 deploy/docker-compose.yml 解耦：
+#   docker compose -f deploy/backend/docker-compose.yml up -d
+# 然后用 docker profile 启动应用：
+#   SPRING_PROFILES_ACTIVE=docker mvn -pl assistant-agent-start spring-boot:run
+services:
+  ops-mysql:
+    image: mysql:8.0
+    container_name: assistant-ops-mysql
+    ports:
+      - "${OPS_MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${OPS_MYSQL_ROOT_PASSWORD:-root_pass}
+      MYSQL_DATABASE: ${OPS_MYSQL_DB:-assistant_ops}
+      MYSQL_USER: ${OPS_MYSQL_USER:-ops}
+      MYSQL_PASSWORD: ${OPS_MYSQL_PASSWORD:-ops_pass}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${OPS_MYSQL_ROOT_PASSWORD:-root_pass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - ops-mysql-data:/var/lib/mysql
+
+  ops-redis:
+    image: redis:7-alpine
+    container_name: assistant-ops-redis
+    ports:
+      - "${OPS_REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - ops-redis-data:/data
+
+volumes:
+  ops-mysql-data:
+  ops-redis-data:

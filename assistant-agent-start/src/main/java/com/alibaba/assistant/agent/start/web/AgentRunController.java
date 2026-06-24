@@ -8,19 +8,24 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * 开放式问答端点：把问题直接交给框架的 Code-as-Action 智能体（CodeactAgent）。
  *
- * <p>与确定性的 {@code /answer} 快路径不同,这里走真正的大模型驱动路径:
+ * <p>
+ * 与确定性的 {@code /answer} 快路径不同,这里走真正的大模型驱动路径:
  * 大模型生成 Python 代码 → 在 GraalVM 沙箱中执行 → 返回结果。生成的代码会打到应用日志。
  *
- * <p>需要可用的大模型 key(DashScope 或 OpenAI 兼容的 DeepSeek 等),否则 LLM 调用会被韧性层兜底。
+ * <p>
+ * 需要可用的大模型 key(DashScope 或 OpenAI 兼容的 DeepSeek 等),否则 LLM 调用会被韧性层兜底。
  *
- * <p>{@code POST /api/ecommerce/agent-run}  body: {"question": "..."}
+ * <p>
+ * {@code POST /api/ecommerce/agent-run} body: {"question": "..."}
  */
 @RestController
 @RequestMapping("/api/ecommerce/agent-run")
@@ -32,6 +37,34 @@ public class AgentRunController {
 
     public AgentRunController(CodeactAgent codeactAgent) {
         this.codeactAgent = codeactAgent;
+    }
+
+    @PostMapping("/stream")
+    public SseEmitter runStream(@RequestBody Map<String, String> body) {
+        String question = body.getOrDefault("question", "").trim();
+        SseEmitter emitter = new SseEmitter(120000L);
+        new Thread(() -> {
+            try {
+                // Agent 每生成一段 → emitter.send() 立刻推给前端
+                // 1. 开始信号（让用户立刻看到反馈）
+                emitter.send(SseEmitter.event().name("status").data("开始分析…"));
+                AssistantMessage answer = codeactAgent.call(question);
+                String text = (answer == null) ? "" : answer.getText();
+                // 2. 内容片段（核心，一段段推答案）
+                for(String chunk: text.split("(?<=。)")){
+                    emitter.send(SseEmitter.event().name("message").data(chunk));
+                    Thread.sleep(50);
+                }
+
+                // 3. 结束信号
+                emitter.send(SseEmitter.event().name("done").data("[完成]"));
+                // 全部完成 →
+                emitter.complete();
+            } catch (Exception e) {
+                emitter.completeWithError(e); // ← 出错时这样收尾
+            }
+        }).start();
+        return emitter;
     }
 
     @PostMapping

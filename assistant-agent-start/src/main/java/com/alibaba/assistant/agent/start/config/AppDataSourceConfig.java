@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @Configuration
@@ -17,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public class AppDataSourceConfig {
 
     @Bean
+    @Primary
     @ConditionalOnProperty(prefix = "app.datasource", name = "enabled", havingValue = "true", matchIfMissing = true)
     public DataSource warehouseDataSource(AppDataSourceProperties properties) {
         return DataSourceBuilder.create()
@@ -33,9 +35,12 @@ public class AppDataSourceConfig {
     }
 
     @Bean
+    @Primary
     @ConditionalOnProperty(prefix = "app.datasource", name = "enabled", havingValue = "true", matchIfMissing = true)
     public JdbcTemplate warehouseJdbcTemplate(DataSource warehouseDataSource, SqlAuditTrail sqlAuditTrail) {
         // 用带审计的 JdbcTemplate，捕获每条实际打到数仓的查询（SQL/参数/行数/耗时）。
+        // 标 @Primary：引入 operational(@Primary)数据源后，Spring 会按主数据源自动配置出
+        // 一个 JdbcTemplate，这里确保所有按类型注入 JdbcTemplate 的数仓消费者仍拿到数仓这个。
         return new RecordingJdbcTemplate(warehouseDataSource, sqlAuditTrail);
     }
 }
