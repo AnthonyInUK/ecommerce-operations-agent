@@ -10,6 +10,7 @@ import com.alibaba.assistant.agent.common.tools.definition.DefaultCodeactToolDef
 import com.alibaba.assistant.agent.common.tools.definition.ParameterNode;
 import com.alibaba.assistant.agent.common.tools.definition.ParameterTree;
 import com.alibaba.assistant.agent.common.tools.definition.ParameterType;
+import com.alibaba.assistant.agent.start.observability.LogAround;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.definition.ToolDefinition;
@@ -54,11 +55,13 @@ public abstract class AbstractWarehouseQueryCodeactTool implements CodeactTool {
     }
 
     @Override
+    @LogAround
     public String call(String toolInput) {
         return call(toolInput, null);
     }
 
     @Override
+    @LogAround
     public String call(String toolInput, ToolContext toolContext) {
         try {
             Map<String, Object> params = toolInput == null || toolInput.isBlank()

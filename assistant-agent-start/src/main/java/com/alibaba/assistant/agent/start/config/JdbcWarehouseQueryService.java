@@ -1,6 +1,8 @@
 package com.alibaba.assistant.agent.start.config;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -68,33 +70,35 @@ public class JdbcWarehouseQueryService {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + tableName, Integer.class);
     }
 
+    // 高频"每日大盘指标"查询：用标准 Spring Cache（@Cacheable）替代手写读缓存。
+    // 本地 SIMPLE、docker 切 Redis；缓存命中则跳过数仓查询（可由 SQL 审计验证）。
+    // 注意：@Cacheable 基于代理，仅对经 Spring 注入的 bean 跨类调用生效。
+    @org.springframework.cache.annotation.Cacheable(cacheNames = "dailyCoreMetrics", key = "#statDate")
     public List<Map<String, Object>> getDailyCoreMetrics(LocalDate statDate) {
-        return cachedList("dailyCoreMetrics|" + statDate, () -> {
-            if (shouldUseOlistAnalytics()) {
-                List<Map<String, Object>> olistRows = jdbcTemplate.queryForList(
-                        """
-                                SELECT stat_date, gmv, paid_order_count, active_buyer_count, 0 AS dau, 0 AS refund_rate, source_tag
-                                FROM ads_olist_daily_core_metrics
-                                WHERE stat_date = ?
-                                ORDER BY stat_date
-                                """,
-                        Date.valueOf(statDate)
-                );
-                if (!olistRows.isEmpty()) {
-                    return olistRows;
-                }
-            }
-
-            return jdbcTemplate.queryForList(
+        if (shouldUseOlistAnalytics()) {
+            List<Map<String, Object>> olistRows = jdbcTemplate.queryForList(
                     """
-                            SELECT stat_date, gmv, paid_order_count, active_buyer_count, dau, refund_rate, 'demo_seed' AS source_tag
-                            FROM ads_daily_core_metrics
+                            SELECT stat_date, gmv, paid_order_count, active_buyer_count, 0 AS dau, 0 AS refund_rate, source_tag
+                            FROM ads_olist_daily_core_metrics
                             WHERE stat_date = ?
                             ORDER BY stat_date
                             """,
                     Date.valueOf(statDate)
             );
-        });
+            if (!olistRows.isEmpty()) {
+                return olistRows;
+            }
+        }
+
+        return jdbcTemplate.queryForList(
+                """
+                        SELECT stat_date, gmv, paid_order_count, active_buyer_count, dau, refund_rate, 'demo_seed' AS source_tag
+                        FROM ads_daily_core_metrics
+                        WHERE stat_date = ?
+                        ORDER BY stat_date
+                        """,
+                Date.valueOf(statDate)
+        );
     }
 
     public List<Map<String, Object>> getUserDailyMetrics(LocalDate statDate, String regionName) {
@@ -493,10 +497,14 @@ public class JdbcWarehouseQueryService {
             return false;
         }
     }
+    @CacheEvict(cacheNames = "refundCategoryBreakdown", allEntries = true)
+    public void evictRefundCategoryBreakdownCache() {
+        // 方法体可以是空的，或者放一行日志
+    }
 
+    @Cacheable(cacheNames = "refundCategoryBreakdown", key = "#statDate+':'+#regionName+':'+#limit")
     public List<Map<String, Object>> getRefundCategoryBreakdown(LocalDate statDate, String regionName, Integer limit) {
         int safeLimit = limit == null || limit <= 0 ? 10 : limit;
-        return cachedList("refundCategoryBreakdown|" + statDate + "|" + normalize(regionName) + "|" + safeLimit, () -> {
             if (shouldUseOlistAnalytics()) {
                 return queryOlistRefundCategoryBreakdown(statDate, regionName, safeLimit);
             }
@@ -538,7 +546,6 @@ public class JdbcWarehouseQueryService {
                             LIMIT ?
                             """,
                     Date.valueOf(statDate), regionName, safeLimit);
-        });
     }
 
     private List<Map<String, Object>> queryOlistRefundCategoryBreakdown(LocalDate statDate, String regionName, int safeLimit) {

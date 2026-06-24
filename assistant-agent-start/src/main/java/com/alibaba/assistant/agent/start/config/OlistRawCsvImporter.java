@@ -35,7 +35,9 @@ public class OlistRawCsvImporter {
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
 
-    public OlistRawCsvImporter(DataSource dataSource, JdbcTemplate jdbcTemplate) {
+    public OlistRawCsvImporter(
+            @org.springframework.beans.factory.annotation.Qualifier("warehouseDataSource") DataSource dataSource,
+            JdbcTemplate jdbcTemplate) {
         this.dataSource = dataSource;
         this.jdbcTemplate = jdbcTemplate;
     }

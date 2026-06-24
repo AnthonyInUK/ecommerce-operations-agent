@@ -183,6 +183,12 @@ public class EcommerceAnalysisController {
         );
     }
 
+    @PostMapping("/cache/refund/evict")
+    public Map<String, Object> evictRefundCache() {
+        warehouseQueryService.evictRefundCategoryBreakdownCache();
+        return Map.of("success", true, "evicted", "refundCategoryBreakdown");
+    }
+
     @PostMapping("/anomalies/{anomalyId}/analyze")
     public Map<String, Object> analyzeAnomaly(@PathVariable String anomalyId,
                                               @RequestBody(required = false) Map<String, String> body) {

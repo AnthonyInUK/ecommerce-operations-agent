@@ -8,6 +8,20 @@ spring:
   application:
     name: assistant-agent-full
 
+  # operational 库（可写）：存分析任务记录/审计。绑定到一个命名次级数据源，
+  # 由 OperationalJpaConfig 显式接到 JPA + Flyway（不走 @Primary 自动配置，避免和
+  # 只读数仓 app.datasource 抢主）。默认 H2(MySQL 模式) 零依赖启动；
+  # docker/prod profile 覆盖为真实 MySQL。
+  datasource:
+    url: jdbc:h2:mem:assistant_ops;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  # 高频查询缓存后端：默认进程内（零依赖）；docker/prod 切 Redis（见 application-docker.yml）。
+  cache:
+    type: ${SPRING_CACHE_TYPE:simple}
+
 server:
   port: 8080
 
@@ -102,6 +116,23 @@ app:
 # ============================================================================
 # DashScope Configuration
 # ============================================================================
+# classpath 上同时存在 DashScope 与 OpenAI 两个 starter，两者的 ChatModel 自动配置
+# 都监听 spring.ai.model.chat 且 matchIfMissing=true。不显式指定就会同时创建
+# dashScopeChatModel + openAiChatModel 两个 Bean，下游注入单个 ChatModel 时报
+# "expected single matching bean but found 2"。这里显式选 dashscope；
+# 切 DeepSeek 时由 application-prod.yml 把它覆盖为 openai。
+spring.ai.model.chat: dashscope
+
+# OpenAI starter 还会带进语音/转写/嵌入/图片/审核等非 chat 自动配置，它们不受
+# spring.ai.model.chat 控制，初始化时强制要求 spring.ai.openai.api-key。我们只用
+# OpenAI 协议跑 chat(DeepSeek)，这些用不到的模块直接排除，避免缺 key 导致启动失败。
+spring.autoconfigure.exclude:
+  - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+  - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+  - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+  - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+  - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
+
 spring.ai.dashscope:
   api-key: ${DASHSCOPE_API_KEY}
   chat:

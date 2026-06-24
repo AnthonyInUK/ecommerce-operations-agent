@@ -27,7 +27,7 @@ public class DemoWarehouseDataInitializer implements CommandLineRunner {
 
     public DemoWarehouseDataInitializer(
             AppDataSourceProperties properties,
-            DataSource dataSource,
+            @org.springframework.beans.factory.annotation.Qualifier("warehouseDataSource") DataSource dataSource,
             JdbcTemplate jdbcTemplate,
             OlistRawCsvImporter olistRawCsvImporter
     ) {
