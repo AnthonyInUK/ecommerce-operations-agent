@@ -1,0 +1,15 @@
+# 服务器自包含部署 override：复用 deploy/docker-compose.yml 的全部 env/卷/健康检查，
+# 仅把构建方式换成自包含多阶段 Dockerfile（服务器只需 Docker，免装 Node/Maven/JDK）。
+#
+# 用法（在项目根目录）：
+#   docker compose \
+#     -f deploy/docker-compose.yml \
+#     -f deploy/docker-compose.standalone.yml \
+#     up -d --build
+#
+# 访问：http://<服务器IP>:18080/agent-console/index.html
+services:
+  assistant-agent:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.standalone

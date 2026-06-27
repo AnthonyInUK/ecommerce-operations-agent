@@ -1,0 +1,32 @@
+# 自包含多阶段构建：服务器只需 Docker，无需本地装 Node/Maven/JDK。
+# 适合 git clone → docker compose up --build 直接在服务器上从源码构建。
+# (现有 deploy/Dockerfile 走"本地先 mvn package 再 COPY jar"的流程，本文件不替代它。)
+
+# ── Stage 1: 构建 React 运营控制台 UI ─────────────────────────────────────────
+FROM node:20-alpine AS ui
+WORKDIR /ui
+COPY assistant-agent-ui/package.json assistant-agent-ui/package-lock.json ./
+RUN npm ci
+COPY assistant-agent-ui/ ./
+# vite.config 的 outDir 默认指向 ../assistant-agent-start/...（构建期不可用），
+# 这里覆盖到本地 dist；base=/agent-console/ 仍由 vite.config 提供，保证资源路径正确。
+RUN npx vite build --outDir /ui/dist --emptyOutDir
+
+# ── Stage 2: 构建 Spring Boot 胖 jar（把 UI 打进静态资源）──────────────────────
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /src
+COPY . .
+# 注入构建好的 UI 到 Spring Boot 静态目录（运行时由后端同源提供 /agent-console/）
+COPY --from=ui /ui/dist assistant-agent-start/src/main/resources/static/agent-console
+RUN mvn -q -B -DskipTests package
+
+# ── Stage 3: 运行时（精简 JRE）────────────────────────────────────────────────
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/assistant-agent-start/target/assistant-agent-start-*.jar app.jar
+RUN mkdir -p /app/logs /app/data /app/olist-csv
+EXPOSE 18080
+ENTRYPOINT ["java", "-Dspring.profiles.active=prod", "-Dfile.encoding=UTF-8", "-jar", "/app/app.jar"]
