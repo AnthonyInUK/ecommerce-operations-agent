@@ -442,6 +442,32 @@ function App() {
               {controlPanel}
               <div ref={resultAnchorRef} className="result-anchor" />
               <Spin spinning={loading} tip={mode === "trigger" ? "正在运行异常巡检..." : "正在分析问题..."}>
+                <div ref={agentAnchorRef} className="result-anchor" />
+                {agentResult && (
+                  <Card title="Agent 临时分析" className="workspace-card agent-result-card">
+                    <Alert
+                      type={agentResult.success === false ? "error" : "info"}
+                      showIcon
+                      message={headline(agentResult, agentRootCause)}
+                      description={
+                        <div className="agent-answer-md">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {agentRootCause?.summary || agentResult?.answer || "这块只展示你手动输入问题的临时分析，不会覆盖当前异常详情。"}
+                          </ReactMarkdown>
+                        </div>
+                      }
+                    />
+                  </Card>
+                )}
+
+                <Collapse
+                  className="ops-collapse"
+                  defaultActiveKey={[]}
+                  items={[{
+                    key: "ops",
+                    label: "异常运营工作台（异常中心 / 处理链路 / 责任分发 / 通知）",
+                    children: (
+                      <>
                 <Row gutter={[16, 16]} className="dashboard-row first-dashboard-row">
                   <Col xs={24}>
                     <Card
@@ -463,24 +489,6 @@ function App() {
                     </Card>
                   </Col>
                 </Row>
-
-                <div ref={agentAnchorRef} className="result-anchor" />
-                {agentResult && (
-                  <Card title="Agent 临时分析" className="workspace-card agent-result-card">
-                    <Alert
-                      type={agentResult.success === false ? "error" : "info"}
-                      showIcon
-                      message={headline(agentResult, agentRootCause)}
-                      description={
-                        <div className="agent-answer-md">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {agentRootCause?.summary || agentResult?.answer || "这块只展示你手动输入问题的临时分析，不会覆盖当前异常详情。"}
-                          </ReactMarkdown>
-                        </div>
-                      }
-                    />
-                  </Card>
-                )}
 
                 {anomalyResult ? (
                   <>
@@ -767,6 +775,10 @@ function App() {
                     />
                   </Card>
                 )}
+                      </>
+                    )
+                  }]}
+                />
               </Spin>
             </Content>
           </Layout>

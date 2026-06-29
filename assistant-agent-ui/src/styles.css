@@ -697,3 +697,23 @@ body {
 .agent-answer-md th, .agent-answer-md td { border: 1px solid #d9d9d9; padding: 4px 10px; text-align: left; }
 .agent-answer-md th { background: #fafafa; font-weight: 600; }
 .agent-answer-md strong { font-weight: 600; }
+
+/* 异常运营工作台折叠面板：默认收起，给问答留出干净的首屏 */
+.ops-collapse {
+  margin-top: 16px;
+  background: transparent;
+  border: none;
+}
+.ops-collapse > .ant-collapse-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.ops-collapse > .ant-collapse-item > .ant-collapse-header {
+  font-weight: 700;
+  color: #334155;
+  background: #f8fafc;
+}
+.ops-collapse .ant-collapse-content > .ant-collapse-content-box {
+  padding: 16px 12px;
+}
