@@ -80,7 +80,7 @@ public class EcommerceAnalysisController {
     public Map<String, Object> demoQuestion() {
         return Map.of(
                 "session_id", "demo-ui-session",
-                "question", "2018-08-29 华东 GMV 为什么跌了？"
+                "question", "2018-05-17 华东 GMV 为什么跌了？"
         );
     }
 

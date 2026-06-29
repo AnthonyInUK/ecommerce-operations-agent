@@ -47,7 +47,7 @@ import "./styles.css";
 
 const { Header, Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
-const DEFAULT_QUESTION = "2018-08-29 华东 GMV 为什么跌了？";
+const DEFAULT_QUESTION = "2018-05-17 华东 GMV 为什么跌了？";
 const ROLE_OPTIONS = [
   { label: "数据分析师", value: "analyst" },
   { label: "平台运营", value: "platform" },
@@ -297,7 +297,7 @@ function App() {
     try {
       const payload = await fetchJson("/api/ecommerce/triggers/gmv-drop-watch/run-once", { method: "POST" });
       setAnomalyResult(payload);
-      setActiveAnomalyTitle("2018-08-29 华东 GMV 异常巡检");
+      setActiveAnomalyTitle("2018-05-17 华东 GMV 异常巡检");
       setLastRunAt(new Date().toLocaleTimeString());
     } catch (error) {
       message.error(`巡检失败：${errorMessage(error)}`);
@@ -335,9 +335,14 @@ function App() {
         </Form>
         <Space wrap align="center" className="quick-inline">
           <Text type="secondary">快捷问题</Text>
-          {["昨天 GMV 多少？", "订单量 / 客单价", "DAU / 活跃买家", "华东 root cause"].map((item) => (
-            <Tag.CheckableTag key={item} checked={false} onChange={() => form.setFieldsValue({ question: item })}>
-              {item}
+          {[
+            { label: "🛒 黑五峰值", q: "2017-11-24 大盘 GMV、订单量、客单价是多少？" },
+            { label: "📉 黑五次日暴跌", q: "2017-11-25 GMV 为什么比前一天跌了这么多？" },
+            { label: "🔍 华东归因", q: "2018-05-17 华东 GMV 为什么跌了？" },
+            { label: "💸 退款品类", q: "2018-05-17 退款集中在哪些品类？" }
+          ].map((item) => (
+            <Tag.CheckableTag key={item.label} checked={false} onChange={() => form.setFieldsValue({ question: item.q })}>
+              {item.label}
             </Tag.CheckableTag>
           ))}
           <Button size="small" onClick={() => form.setFieldsValue({ question: DEFAULT_QUESTION })}>
