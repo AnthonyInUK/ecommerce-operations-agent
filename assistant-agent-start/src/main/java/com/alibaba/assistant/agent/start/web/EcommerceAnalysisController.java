@@ -16,6 +16,7 @@ import com.alibaba.assistant.agent.start.service.AnomalyScannerService;
 import com.alibaba.assistant.agent.start.service.CodeActInterpretationValidator;
 import com.alibaba.assistant.agent.start.service.CodeActPlanExecutor;
 import com.alibaba.assistant.agent.start.service.EcommerceQuestionAnswerService;
+import com.alibaba.assistant.agent.start.service.LlmEcommerceQaService;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,6 +38,7 @@ public class EcommerceAnalysisController {
     private static final String GMV_DROP_WATCH_EVENT_KEY = "ecommerce_gmv_drop_watch";
 
     private final EcommerceQuestionAnswerService questionAnswerService;
+    private final LlmEcommerceQaService llmEcommerceQaService;
     private final AppOperationsProperties operationsProperties;
     private final JdbcWarehouseQueryService warehouseQueryService;
     private final TriggerManager triggerManager;
@@ -49,6 +51,7 @@ public class EcommerceAnalysisController {
     private final CodeActInterpretationValidator interpretationValidator;
 
     public EcommerceAnalysisController(EcommerceQuestionAnswerService questionAnswerService,
+                                       LlmEcommerceQaService llmEcommerceQaService,
                                        AppOperationsProperties operationsProperties,
                                        JdbcWarehouseQueryService warehouseQueryService,
                                        TriggerManager triggerManager,
@@ -60,6 +63,7 @@ public class EcommerceAnalysisController {
                                        CodeActPlanExecutor codeActPlanExecutor,
                                        CodeActInterpretationValidator interpretationValidator) {
         this.questionAnswerService = questionAnswerService;
+        this.llmEcommerceQaService = llmEcommerceQaService;
         this.operationsProperties = operationsProperties;
         this.warehouseQueryService = warehouseQueryService;
         this.triggerManager = triggerManager;
@@ -406,10 +410,24 @@ public class EcommerceAnalysisController {
                     "message", "question 不能为空"
             );
         }
+        String resolvedSession = sessionId.isEmpty() ? "demo-ui-session" : sessionId;
+        return llmEcommerceQaService.answer(resolvedSession, question);
+    }
 
-        Map<String, Object> result = questionAnswerService.answer(sessionId.isEmpty() ? "demo-ui-session" : sessionId, question);
+    @PostMapping("/answer/legacy")
+    public Map<String, Object> answerLegacy(@RequestBody Map<String, String> body) {
+        String question = body.getOrDefault("question", "").trim();
+        String sessionId = body.getOrDefault("session_id", "demo-ui-session").trim();
+        if (question.isEmpty()) {
+            return Map.of(
+                    "success", false,
+                    "message", "question 不能为空"
+            );
+        }
+        String resolvedSession = sessionId.isEmpty() ? "demo-ui-session" : sessionId;
+        Map<String, Object> result = questionAnswerService.answer(resolvedSession, question);
         Map<String, Object> response = new LinkedHashMap<>(result);
-        response.put("session_id", sessionId.isEmpty() ? "demo-ui-session" : sessionId);
+        response.put("session_id", resolvedSession);
         return response;
     }
 
