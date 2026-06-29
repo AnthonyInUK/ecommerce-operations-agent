@@ -59,6 +59,14 @@ public class DemoWarehouseDataInitializer implements CommandLineRunner {
             return;
         }
 
+        // 二次守卫：持久化文件库下，若上一轮在 ADS 表建好前就插入了 demo 事实数据（半初始化），
+        // 仅靠上面的 ADS 表存在性判断会漏判，导致 load_data.sql 重复插入 raw_orders 主键冲突、
+        // 启动崩溃并无限重启。这里再判断 raw_orders 是否已有数据，有则直接跳过，保证幂等。
+        if (demoFactDataAlreadyPresent()) {
+            log.info("DemoWarehouseDataInitializer#run - reason=demo fact data already present (partial init guard), skip reload");
+            return;
+        }
+
         ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
         populator.setSqlScriptEncoding("UTF-8");
         populator.addScript(new ClassPathResource("demo-data/init_schema.sql"));
@@ -67,6 +75,28 @@ public class DemoWarehouseDataInitializer implements CommandLineRunner {
 
         Integer coreMetricsRows = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ads_daily_core_metrics", Integer.class);
         log.info("DemoWarehouseDataInitializer#run - reason=demo warehouse initialized, coreMetricRows={}", coreMetricsRows);
+    }
+
+    /**
+     * demo 事实数据是否已经存在（防半初始化重复插入）。
+     * raw_orders 表不存在或为空都视为"未加载"；任何查询异常都当作未加载，让正常流程继续。
+     */
+    private boolean demoFactDataAlreadyPresent() {
+        try {
+            Integer tableExists = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'RAW_ORDERS'",
+                    Integer.class
+            );
+            if (tableExists == null || tableExists == 0) {
+                return false;
+            }
+            Integer rows = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM raw_orders", Integer.class);
+            return rows != null && rows > 0;
+        }
+        catch (Exception ex) {
+            log.warn("DemoWarehouseDataInitializer#demoFactDataAlreadyPresent - reason=check failed, treat as not loaded, error={}", ex.getMessage());
+            return false;
+        }
     }
 
     private void bootstrapNotificationDeliverySchema() {

@@ -333,7 +333,7 @@ function App() {
             </Col>
           </Row>
         </Form>
-        <Space wrap className="quick-inline">
+        <Space wrap align="center" className="quick-inline">
           <Text type="secondary">快捷问题</Text>
           {["昨天 GMV 多少？", "订单量 / 客单价", "DAU / 活跃买家", "华东 root cause"].map((item) => (
             <Tag.CheckableTag key={item} checked={false} onChange={() => form.setFieldsValue({ question: item })}>

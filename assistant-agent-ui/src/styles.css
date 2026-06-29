@@ -67,15 +67,29 @@ body {
 
 .quick-inline {
   margin-top: 14px;
+  row-gap: 8px;
+}
+
+/* 让快捷问题这一行的标签、按钮、文字统一垂直居中、等高，避免高低不平 */
+.quick-inline .ant-space-item {
+  display: flex;
+  align-items: center;
 }
 
 .quick-inline .ant-tag-checkable {
-  margin: 0 4px 8px 0;
-  padding: 7px 10px;
+  margin: 0;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
   border-radius: 999px;
   background: #f1f5f9;
   color: #475569;
   font-weight: 700;
+}
+
+.quick-inline .ant-btn {
+  height: 32px;
 }
 
 .status-card .ant-card-body {
