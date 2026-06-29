@@ -1,0 +1,27 @@
+# 共享门卫模式 override —— 让电商后端加入共享外部网络 edge，
+# 由独立的 edge-proxy（专门的 Caddy）按容器别名 assistant-agent 反代并负责 HTTPS。
+#
+# 不再需要 docker-compose.domain.yml（那会起第二个抢 80/443 的 Caddy）。
+# 18080 仍可保留在宿主机便于本地排查，但对外只走门卫的 443。
+#
+# 前提：先创建共享网络  ->  docker network create edge
+# 启动（项目根目录）：
+#   docker compose --env-file .env \
+#     -f deploy/docker-compose.yml \
+#     -f deploy/docker-compose.standalone.yml \
+#     -f deploy/docker-compose.tencentcloud.yml \
+#     -f deploy/docker-compose.edge.yml \
+#     up -d --build
+#
+# 电商仓库只认识一张通用的 edge 网，不引用 evo/合规等任何其它项目。
+services:
+  assistant-agent:
+    networks:
+      default: {}            # 保留默认网，仍能内部访问 redis 等同一 compose 的服务
+      edge:
+        aliases:
+          - assistant-agent  # 门卫 Caddy 用这个名字反代到 18080
+
+networks:
+  edge:
+    external: true
