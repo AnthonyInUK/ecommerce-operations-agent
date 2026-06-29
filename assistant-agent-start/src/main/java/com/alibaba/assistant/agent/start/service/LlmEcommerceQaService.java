@@ -36,11 +36,16 @@ public class LlmEcommerceQaService {
             - RefundAnalysisTool：查询退款集中的品类分布
             - FunnelAnalysisTool：查询从浏览到支付的漏斗各步骤转化率
 
+            【数据范围】
+            - 当前接的是 Olist 巴西电商公开数据集，覆盖 2016-09 至 2018-09。
+            - 数据量较大的代表日期：2017-11-24（黑五，全年峰值）、2018-05 多个高峰日。
+            - 典型环比下跌可演示日期：2017-11-25（黑五次日 -60%）、2018-05-17（月中 -44%）。
+
             【工作规范】
             - 收到问题后，主动调用相关工具获取数据，不要猜测数据
             - 若问题涉及原因归因（"为什么跌"、"什么原因"），先查大盘，再查区域/品类/退款/漏斗多个维度
             - 数据查询完毕后，用简洁中文给出分析结论，指出关键数字
-            - 日期若未明确，使用演示数据最新日期 2018-08-29
+            - 日期若未明确，使用 2018-08-29（数据集中有完整快照的日期）
             - 回答聚焦业务数据，不要输出工具调用的原始 JSON
             """;
 
@@ -62,7 +67,7 @@ public class LlmEcommerceQaService {
         };
         this.chatClient = ChatClient.builder(chatModel)
                 .defaultSystem(SYSTEM_PROMPT)
-                .defaultTools(tools)
+                .defaultToolCallbacks(tools)
                 .build();
     }
 

@@ -108,13 +108,15 @@ public class EcommerceQuestionAnswerService {
             case "user_metrics" -> result = answerUserMetrics(question, resolvedQuestion);
             case "channel_conversion" -> result = answerChannelConversion(question, resolvedQuestion);
             case "daily_gmv" -> result = answerDailyGmv(question, resolvedQuestion);
+            case "refund_breakdown" -> result = answerRefundBreakdown(question, resolvedQuestion);
             case "refund_rate_metrics" -> result = answerRefundRate(question, resolvedQuestion);
             case "region_compare" -> result = answerRegionCompare(question, resolvedQuestion);
             case "category_rank" -> result = answerCategoryRank(question, resolvedQuestion);
+            case "business_general" -> result = answerBusinessGeneral(question, resolvedQuestion);
             default -> result = Map.of(
                     "success", false,
                     "question", question,
-                    "message", "当前最小问答链只覆盖 GMV、订单、用户、区域对比、品类排行和区域 GMV 下跌归因几类问题。"
+                    "message", "这个问题暂时没有落在已授权的电商经营分析范围内。你可以问 GMV、订单、用户、区域、品类、转化、退款、异常原因或运营处理建议。"
             );
         }
 
@@ -218,6 +220,39 @@ public class EcommerceQuestionAnswerService {
         Map<String, Object> row = rows.isEmpty() ? Map.of() : rows.get(0);
         String answer = String.format("%s 的大盘退款率是 %s。", statDate, value(row, "REFUND_RATE"));
         return baseAnswer(question, "fast", List.of("GmvQueryTool"), answer, Map.of("daily_core_metrics", rows));
+    }
+
+    private Map<String, Object> answerRefundBreakdown(String question, ResolvedQuestion resolvedQuestion) {
+        LocalDate statDate = resolvedQuestion.statDate();
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("stat_date", statDate.toString());
+        params.put("limit", 5);
+        if (resolvedQuestion.regionName() != null) {
+            params.put("region_name", resolvedQuestion.regionName());
+        }
+        Map<String, Object> toolResult = invokeTool(refundAnalysisTool, params);
+        List<Map<String, Object>> rows = rows(toolResult);
+        String scope = resolvedQuestion.regionName() == null ? "全站" : resolvedQuestion.regionName();
+        if (rows.isEmpty()) {
+            String answer = String.format("%s %s 暂无明显退款品类集中数据。", statDate, scope);
+            return baseAnswer(question, "fast", List.of("RefundAnalysisTool"), answer, Map.of("refund_breakdown", rows), resolvedQuestion);
+        }
+        String ranking = rows.stream()
+                .limit(5)
+                .map(row -> String.format("%s（退款金额%s，关联GMV%s，退款金额占比%s）",
+                        value(row, "CATEGORY_L1"),
+                        value(row, "REFUND_AMOUNT"),
+                        value(row, "RELATED_GMV"),
+                        value(row, "REFUND_AMOUNT_RATE")))
+                .reduce((left, right) -> left + "；" + right)
+                .orElse("暂无数据");
+        Map<String, Object> top = rows.get(0);
+        String answer = String.format("%s %s 退款主要集中在%s。Top 品类依次是：%s。",
+                statDate,
+                scope,
+                value(top, "CATEGORY_L1"),
+                ranking);
+        return baseAnswer(question, "fast", List.of("RefundAnalysisTool"), answer, Map.of("refund_breakdown", rows), resolvedQuestion);
     }
 
     private Map<String, Object> answerOrderMetrics(String question, ResolvedQuestion resolvedQuestion) {
@@ -440,6 +475,26 @@ public class EcommerceQuestionAnswerService {
                 "rule", "单个 Tool 失败时保留已完成证据，并将失败维度标记为证据不足；核心区域/订单/品类全部失败时才需要人工复核。"
         ));
         result.put("degradations", degradations);
+        return result;
+    }
+
+    private Map<String, Object> answerBusinessGeneral(String question, ResolvedQuestion resolvedQuestion) {
+        ResolvedQuestion rootCauseQuestion = ResolvedQuestion.normal(
+                "root_cause",
+                resolvedQuestion.metricId() == null ? "gmv" : resolvedQuestion.metricId(),
+                resolvedQuestion.statDate(),
+                resolvedQuestion.regionName() == null ? "华东" : resolvedQuestion.regionName(),
+                resolvedQuestion.categoryName()
+        );
+        Map<String, Object> result = new LinkedHashMap<>(answerRootCause(question, rootCauseQuestion));
+        result.put("intent_route", "business_general");
+        result.put("route_policy", Map.of(
+                "domain_gate", "ecommerce_operations",
+                "fallback", "root_cause_workflow",
+                "reason", "问题和电商经营业务相关，但没有命中固定问数意图，因此进入通用业务分析入口。"
+        ));
+        result.put("answer", "我先按电商经营问题接住这个问题，并用当前可用的 GMV/订单/用户/品类/漏斗/退款证据做通用分析。\n\n"
+                + result.getOrDefault("answer", ""));
         return result;
     }
 
@@ -753,7 +808,7 @@ public class EcommerceQuestionAnswerService {
         LocalDate statDate = resolveDateWithContext(question, sessionState);
         String metricId = detectMetricId(question, sessionState);
 
-        if (question.contains("为什么跌")) {
+        if (isRootCauseQuestion(question)) {
             return ResolvedQuestion.normal("root_cause", metricId == null ? "gmv" : metricId, statDate, regionName == null ? "华东" : regionName, categoryName);
         }
         if ((question.contains("订单量") || question.contains("客单价")) && isMetricQueryLike(question)) {
@@ -764,6 +819,9 @@ public class EcommerceQuestionAnswerService {
         }
         if (question.contains("渠道") && question.contains("转化")) {
             return ResolvedQuestion.normal("channel_conversion", "conversion_rate", statDate, regionName, categoryName);
+        }
+        if (isRefundBreakdownQuestion(question)) {
+            return ResolvedQuestion.normal("refund_breakdown", "refund_amount", statDate, regionName, categoryName);
         }
         if ((metricDictionaryCatalog.matches("refund_rate", question) || "refund_rate".equals(metricId))
                 && (isMetricQueryLike(question) || isFollowUpQuestion(question))) {
@@ -788,7 +846,83 @@ public class EcommerceQuestionAnswerService {
                     regionName != null ? regionName : sessionState.lastRegionName(),
                     categoryName != null ? categoryName : sessionState.lastCategoryName());
         }
+        if (isBusinessDomainQuestion(question, sessionState)) {
+            return ResolvedQuestion.normal("business_general",
+                    metricId == null ? "gmv" : metricId,
+                    statDate,
+                    regionName == null ? sessionState.lastRegionName() : regionName,
+                    categoryName == null ? sessionState.lastCategoryName() : categoryName);
+        }
         return ResolvedQuestion.normal("unknown", metricId, statDate, regionName, categoryName);
+    }
+
+    private boolean isRootCauseQuestion(String question) {
+        String normalized = question == null ? "" : question.toLowerCase();
+        boolean hasGmvOrAnomalyContext = normalized.contains("gmv")
+                || normalized.contains("异常")
+                || normalized.contains("anomaly")
+                || normalized.contains("经营")
+                || normalized.contains("运营");
+        boolean asksForCause = normalized.contains("为什么")
+                || normalized.contains("为何")
+                || normalized.contains("原因")
+                || normalized.contains("归因")
+                || normalized.contains("root cause")
+                || normalized.contains("root_cause")
+                || normalized.contains("分析")
+                || normalized.contains("详情")
+                || normalized.contains("排查");
+        boolean hasDropSignal = normalized.contains("跌")
+                || normalized.contains("下降")
+                || normalized.contains("下滑")
+                || normalized.contains("回落")
+                || normalized.contains("drop");
+        return normalized.contains("为什么跌")
+                || (hasGmvOrAnomalyContext && asksForCause)
+                || (hasGmvOrAnomalyContext && hasDropSignal);
+    }
+
+    private boolean isBusinessDomainQuestion(String question, ConversationSessionState sessionState) {
+        String normalized = question == null ? "" : question.trim().toLowerCase();
+        if (normalized.isBlank()) {
+            return false;
+        }
+        if (List.of("?", "？", "??", "？？", "怎么说", "怎么看").contains(normalized)
+                && sessionState.lastIntent() != null) {
+            return true;
+        }
+        if (detectRegion(question, sessionState) != null || detectCategory(question, sessionState) != null) {
+            return true;
+        }
+        if (detectMetricId(question, sessionState) != null) {
+            return true;
+        }
+        return List.of(
+                        "电商", "运营", "经营", "业务", "gmv", "订单", "客单价", "用户", "dau", "活跃买家",
+                        "区域", "华东", "华南", "品类", "商品", "商家", "库存", "履约", "物流",
+                        "售后", "退款", "退货", "转化", "漏斗", "广告", "投放", "活动", "优惠券",
+                        "异常", "下跌", "下降", "下滑", "回落", "增长", "原因", "归因", "建议", "策略",
+                        "处理", "排查", "复盘", "飞书", "通知", "负责人"
+                )
+                .stream()
+                .anyMatch(normalized::contains);
+    }
+
+    private boolean isRefundBreakdownQuestion(String question) {
+        String normalized = question == null ? "" : question.toLowerCase();
+        boolean refundContext = normalized.contains("退款")
+                || normalized.contains("售后")
+                || normalized.contains("退货")
+                || normalized.contains("refund");
+        boolean asksBreakdown = normalized.contains("集中")
+                || normalized.contains("哪些品类")
+                || normalized.contains("什么品类")
+                || normalized.contains("品类")
+                || normalized.contains("分布")
+                || normalized.contains("top")
+                || normalized.contains("排行")
+                || normalized.contains("排名");
+        return refundContext && asksBreakdown;
     }
 
     private ResolvedQuestion resolveClarificationFollowUp(String question, ConversationSessionState sessionState) {

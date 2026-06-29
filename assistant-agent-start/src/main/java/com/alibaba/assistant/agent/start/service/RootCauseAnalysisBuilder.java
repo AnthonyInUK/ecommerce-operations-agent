@@ -36,14 +36,14 @@ public class RootCauseAnalysisBuilder {
                                          Map<String, Object> refund,
                                          List<Map<String, Object>> productSellerDrilldown,
                                          List<Map<String, Object>> businessEvidence) {
-        Map<String, Object> currentRegionRow = firstRow(currentRegion);
-        Map<String, Object> previousRegionRow = firstRow(previousRegion);
         Map<String, Object> currentOrderRow = firstRow(currentOrder);
         Map<String, Object> previousOrderRow = firstRow(previousOrder);
         Map<String, Object> currentUserRow = firstRow(currentUser);
         Map<String, Object> previousUserRow = firstRow(previousUser);
         List<Map<String, Object>> currentCategoryRows = rows(currentCategory);
         List<Map<String, Object>> previousCategoryRows = rows(previousCategory);
+        Map<String, Object> currentRegionRow = regionRowOrFallback(regionName, firstRow(currentRegion), currentOrderRow, currentCategoryRows);
+        Map<String, Object> previousRegionRow = regionRowOrFallback(regionName, firstRow(previousRegion), previousOrderRow, previousCategoryRows);
         Map<String, Object> funnelCurrentRow = firstRow(funnelCurrent);
         Map<String, Object> funnelPreviousRow = firstRow(funnelPrevious);
         List<Map<String, Object>> refundRows = rows(refund);
@@ -81,8 +81,8 @@ public class RootCauseAnalysisBuilder {
         );
 
         Map<String, Object> facts = new LinkedHashMap<>();
-        facts.put("current_region", rows(currentRegion));
-        facts.put("previous_region", rows(previousRegion));
+        facts.put("current_region", currentRegionRow.isEmpty() ? List.of() : List.of(currentRegionRow));
+        facts.put("previous_region", previousRegionRow.isEmpty() ? List.of() : List.of(previousRegionRow));
         facts.put("current_order_structure", rows(currentOrder));
         facts.put("previous_order_structure", rows(previousOrder));
         facts.put("current_user_metrics", rows(currentUser));
@@ -104,7 +104,7 @@ public class RootCauseAnalysisBuilder {
         overview.put("current_gmv", value(currentRegionRow, "GMV"));
 
         String summary = String.format(
-                "%s 在 %s 相比 %s 的 GMV 从 %s 下降到 %s。用户规模侧%s；交易结构侧%s；按品类拆解，主要拖累来自%s；业务证据侧%s；漏斗侧%s；售后侧%s。当前区域/订单/品类判断分别使用%s、%s、%s；用户/漏斗/退款/业务补齐证据仍沿主链数据。",
+                "%s 在 %s 相比 %s 的 GMV 从 %s 下降到 %s。用户：%s；交易：%s；品类：%s；业务证据：%s；漏斗：%s；售后：%s。%s",
                 regionName,
                 statDate,
                 previousDate,
@@ -116,9 +116,7 @@ public class RootCauseAnalysisBuilder {
                 businessEvidenceSection.summary(),
                 funnelSection.summary(),
                 refundSection.summary(),
-                describeDataSource(regionDataSource),
-                describeDataSource(orderDataSource),
-                describeDataSource(categoryDataSource)
+                lineageSentence(regionDataSource, orderDataSource, categoryDataSource)
         );
         List<RootCauseAnalysisResult.Section> sections = List.of(regionSection, orderSection, userSection, categorySection, businessEvidenceSection, funnelSection, refundSection);
         List<Map<String, Object>> decisionTrace = buildDecisionTrace(sections);
@@ -126,11 +124,29 @@ public class RootCauseAnalysisBuilder {
         Map<String, Object> evidenceConfidence = buildEvidenceConfidence(sections, dataLineage);
         double previousGmv = numberValue(value(previousRegionRow, "GMV"));
         double currentGmv  = numberValue(value(currentRegionRow,  "GMV"));
+        Map<String, Object> metricBridge = buildMetricBridge(
+                currentRegionRow,
+                previousRegionRow,
+                currentOrderRow,
+                previousOrderRow,
+                currentUserRow,
+                previousUserRow,
+                currentCategoryRows,
+                previousCategoryRows,
+                funnelCurrentRow,
+                funnelPreviousRow,
+                refundRows
+        );
+        List<Map<String, Object>> impactDrivers = buildImpactDrivers(metricBridge, drilldownRows, businessEvidenceRows, sections);
+        List<Map<String, Object>> verificationPlan = buildVerificationPlan(impactDrivers, actionRouting);
         Map<String, Object> notificationDraft = buildNotificationDraft(regionName, statDate, previousDate, summary, sections, actionRouting, drilldownRows, evidenceConfidence, dataLineage, previousGmv, currentGmv);
 
         return new RootCauseAnalysisResult(
                 summary,
                 overview,
+                metricBridge,
+                impactDrivers,
+                verificationPlan,
                 sections,
                 decisionTrace,
                 actionRouting,
@@ -140,6 +156,434 @@ public class RootCauseAnalysisBuilder {
                 dataLineage,
                 facts
         );
+    }
+
+    private Map<String, Object> regionRowOrFallback(String regionName,
+                                                    Map<String, Object> regionRow,
+                                                    Map<String, Object> orderRow,
+                                                    List<Map<String, Object>> categoryRows) {
+        if (regionRow != null && !regionRow.isEmpty()) {
+            return regionRow;
+        }
+
+        double orderGmv = numberValue(value(orderRow, "GROSS_PAY_AMOUNT"));
+        double orderCount = numberValue(value(orderRow, "PAID_ORDER_COUNT"));
+        if (orderGmv > 0 || orderCount > 0) {
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("region_name", regionName);
+            fallback.put("gmv", orderGmv);
+            fallback.put("paid_order_count", orderCount);
+            fallback.put("refund_rate", 0D);
+            fallback.put("source_tag", value(orderRow, "SOURCE_TAG") == null ? "demo_seed" : value(orderRow, "SOURCE_TAG"));
+            fallback.put("region_fallback_source", "order_structure");
+            return fallback;
+        }
+
+        double categoryGmv = categoryRows == null ? 0D : categoryRows.stream()
+                .mapToDouble(row -> numberValue(value(row, "GMV")))
+                .sum();
+        double categoryPaidOrders = categoryRows == null ? 0D : categoryRows.stream()
+                .mapToDouble(row -> numberValue(value(row, "PAID_ORDER_COUNT")))
+                .sum();
+        if (categoryGmv > 0 || categoryPaidOrders > 0) {
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("region_name", regionName);
+            fallback.put("gmv", categoryGmv);
+            fallback.put("paid_order_count", categoryPaidOrders);
+            fallback.put("refund_rate", 0D);
+            fallback.put("source_tag", "demo_seed");
+            fallback.put("region_fallback_source", "category_sum");
+            return fallback;
+        }
+
+        return Map.of();
+    }
+
+    private Map<String, Object> buildMetricBridge(Map<String, Object> currentRegionRow,
+                                                  Map<String, Object> previousRegionRow,
+                                                  Map<String, Object> currentOrderRow,
+                                                  Map<String, Object> previousOrderRow,
+                                                  Map<String, Object> currentUserRow,
+                                                  Map<String, Object> previousUserRow,
+                                                  List<Map<String, Object>> currentCategoryRows,
+                                                  List<Map<String, Object>> previousCategoryRows,
+                                                  Map<String, Object> currentFunnelRow,
+                                                  Map<String, Object> previousFunnelRow,
+                                                  List<Map<String, Object>> refundRows) {
+        double previousGmv = numberValue(value(previousRegionRow, "GMV"));
+        double currentGmv = numberValue(value(currentRegionRow, "GMV"));
+        double totalDelta = currentGmv - previousGmv;
+        double previousOrderCount = numberValue(value(previousOrderRow, "ORDER_COUNT"));
+        double currentOrderCount = numberValue(value(currentOrderRow, "ORDER_COUNT"));
+        double previousAov = numberValue(value(previousOrderRow, "AVG_ORDER_VALUE"));
+        double currentAov = numberValue(value(currentOrderRow, "AVG_ORDER_VALUE"));
+
+        double orderCountEffect = (currentOrderCount - previousOrderCount) * previousAov;
+        double aovEffect = currentOrderCount * (currentAov - previousAov);
+        double explainedByOrderModel = orderCountEffect + aovEffect;
+        double residual = totalDelta - explainedByOrderModel;
+
+        List<Map<String, Object>> bridgeComponents = new ArrayList<>();
+        bridgeComponents.add(bridgeComponent(
+                "paid_order_count",
+                "支付订单量效应",
+                previousOrderCount,
+                currentOrderCount,
+                currentOrderCount - previousOrderCount,
+                orderCountEffect,
+                totalDelta,
+                "在前一日客单价不变的假设下，单量变化对 GMV 的影响。"
+        ));
+        bridgeComponents.add(bridgeComponent(
+                "average_order_value",
+                "客单价效应",
+                previousAov,
+                currentAov,
+                currentAov - previousAov,
+                aovEffect,
+                totalDelta,
+                "在当前支付订单量下，客单价变化对 GMV 的影响。"
+        ));
+        bridgeComponents.add(bridgeComponent(
+                "model_residual",
+                "区域口径残差",
+                previousGmv,
+                currentGmv,
+                totalDelta,
+                residual,
+                totalDelta,
+                "区域 GMV 与订单模型之间的差额，优先核对退款后口径、订单状态和数据同步。"
+        ));
+
+        List<Map<String, Object>> categoryContribution = buildCategoryContribution(currentCategoryRows, previousCategoryRows, totalDelta);
+        Map<String, Object> funnelBridge = buildFunnelBridge(currentFunnelRow, previousFunnelRow);
+        Map<String, Object> userBridge = buildUserBridge(currentUserRow, previousUserRow);
+        Map<String, Object> refundBridge = buildRefundBridge(refundRows, Math.abs(totalDelta));
+
+        Map<String, Object> bridge = new LinkedHashMap<>();
+        bridge.put("equation", "GMV = paid_order_count * average_order_value");
+        bridge.put("previous_gmv", previousGmv);
+        bridge.put("current_gmv", currentGmv);
+        bridge.put("total_delta", totalDelta);
+        bridge.put("drop_rate", previousGmv == 0 ? 0D : totalDelta / previousGmv);
+        bridge.put("components", bridgeComponents);
+        bridge.put("order_model_explained_delta", explainedByOrderModel);
+        bridge.put("order_model_residual", residual);
+        bridge.put("category_contribution", categoryContribution);
+        bridge.put("user_bridge", userBridge);
+        bridge.put("funnel_bridge", funnelBridge);
+        bridge.put("refund_bridge", refundBridge);
+        bridge.put("diagnostic_summary", metricBridgeSummary(totalDelta, bridgeComponents, categoryContribution, refundBridge));
+        return bridge;
+    }
+
+    private Map<String, Object> bridgeComponent(String key,
+                                                String title,
+                                                double previousValue,
+                                                double currentValue,
+                                                double metricDelta,
+                                                double estimatedGmvImpact,
+                                                double totalDelta,
+                                                String interpretation) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("key", key);
+        item.put("title", title);
+        item.put("previous_value", previousValue);
+        item.put("current_value", currentValue);
+        item.put("metric_delta", metricDelta);
+        item.put("estimated_gmv_impact", estimatedGmvImpact);
+        item.put("contribution_rate", contributionRate(estimatedGmvImpact, totalDelta));
+        item.put("direction", estimatedGmvImpact < 0 ? "drag" : estimatedGmvImpact > 0 ? "offset" : "neutral");
+        item.put("interpretation", interpretation);
+        return item;
+    }
+
+    private List<Map<String, Object>> buildCategoryContribution(List<Map<String, Object>> currentRows,
+                                                               List<Map<String, Object>> previousRows,
+                                                               double totalDelta) {
+        Map<String, Double> current = new LinkedHashMap<>();
+        for (Map<String, Object> row : currentRows) {
+            current.put(String.valueOf(value(row, "CATEGORY_L1")), numberValue(value(row, "GMV")));
+        }
+        Map<String, Double> previous = new LinkedHashMap<>();
+        for (Map<String, Object> row : previousRows) {
+            previous.put(String.valueOf(value(row, "CATEGORY_L1")), numberValue(value(row, "GMV")));
+        }
+
+        Map<String, Double> deltaMap = new LinkedHashMap<>();
+        previous.forEach((category, previousGmv) -> deltaMap.put(category, current.getOrDefault(category, 0D) - previousGmv));
+        current.forEach((category, currentGmv) -> deltaMap.putIfAbsent(category, currentGmv));
+
+        List<Map<String, Object>> contribution = new ArrayList<>();
+        for (Map.Entry<String, Double> entry : deltaMap.entrySet()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("category_l1", entry.getKey());
+            item.put("previous_gmv", previous.getOrDefault(entry.getKey(), 0D));
+            item.put("current_gmv", current.getOrDefault(entry.getKey(), 0D));
+            item.put("gmv_delta", entry.getValue());
+            item.put("contribution_rate", contributionRate(entry.getValue(), totalDelta));
+            item.put("direction", entry.getValue() < 0 ? "drag" : entry.getValue() > 0 ? "offset" : "neutral");
+            contribution.add(item);
+        }
+        contribution.sort((left, right) -> Double.compare(numberValue(right.get("contribution_rate")), numberValue(left.get("contribution_rate"))));
+        return contribution;
+    }
+
+    private Map<String, Object> buildUserBridge(Map<String, Object> currentUserRow,
+                                                Map<String, Object> previousUserRow) {
+        double previousDau = numberValue(value(previousUserRow, "DAU"));
+        double currentDau = numberValue(value(currentUserRow, "DAU"));
+        double previousBuyer = numberValue(value(previousUserRow, "ACTIVE_BUYER_COUNT"));
+        double currentBuyer = numberValue(value(currentUserRow, "ACTIVE_BUYER_COUNT"));
+        Map<String, Object> bridge = new LinkedHashMap<>();
+        bridge.put("previous_dau", previousDau);
+        bridge.put("current_dau", currentDau);
+        bridge.put("dau_delta", currentDau - previousDau);
+        bridge.put("previous_active_buyer", previousBuyer);
+        bridge.put("current_active_buyer", currentBuyer);
+        bridge.put("active_buyer_delta", currentBuyer - previousBuyer);
+        bridge.put("previous_buyer_activation_rate", previousDau == 0 ? 0D : previousBuyer / previousDau);
+        bridge.put("current_buyer_activation_rate", currentDau == 0 ? 0D : currentBuyer / currentDau);
+        return bridge;
+    }
+
+    private Map<String, Object> buildFunnelBridge(Map<String, Object> currentFunnelRow,
+                                                  Map<String, Object> previousFunnelRow) {
+        double previousViewToPay = numberValue(value(previousFunnelRow, "VIEW_TO_PAY_RATE"));
+        double currentViewToPay = numberValue(value(currentFunnelRow, "VIEW_TO_PAY_RATE"));
+        Map<String, Object> bridge = new LinkedHashMap<>();
+        bridge.put("previous_view_to_pay", previousViewToPay);
+        bridge.put("current_view_to_pay", currentViewToPay);
+        bridge.put("rate_delta", currentViewToPay - previousViewToPay);
+        bridge.put("direction", currentViewToPay < previousViewToPay ? "drag" : currentViewToPay > previousViewToPay ? "offset" : "neutral");
+        return bridge;
+    }
+
+    private Map<String, Object> buildRefundBridge(List<Map<String, Object>> refundRows, double totalDropMagnitude) {
+        double totalRefundAmount = refundRows.stream()
+                .mapToDouble(row -> numberValue(value(row, "REFUND_AMOUNT")))
+                .sum();
+        Map<String, Object> bridge = new LinkedHashMap<>();
+        bridge.put("refund_category_count", refundRows.size());
+        bridge.put("total_refund_amount", totalRefundAmount);
+        bridge.put("refund_to_drop_ratio", totalDropMagnitude == 0 ? 0D : totalRefundAmount / totalDropMagnitude);
+        bridge.put("top_refund_category", refundRows.isEmpty() ? null : value(refundRows.get(0), "CATEGORY_L1"));
+        bridge.put("top_refund_amount", refundRows.isEmpty() ? 0D : value(refundRows.get(0), "REFUND_AMOUNT"));
+        return bridge;
+    }
+
+    private String metricBridgeSummary(double totalDelta,
+                                       List<Map<String, Object>> bridgeComponents,
+                                       List<Map<String, Object>> categoryContribution,
+                                       Map<String, Object> refundBridge) {
+        String direction = totalDelta < 0 ? "下滑" : totalDelta > 0 ? "增长" : "持平";
+        String topMetric = bridgeComponents.stream()
+                .filter(item -> "drag".equals(item.get("direction")))
+                .findFirst()
+                .map(item -> String.valueOf(item.get("title")))
+                .orElse("暂无单一指标拖累");
+        String topCategory = categoryContribution.stream()
+                .filter(item -> "drag".equals(item.get("direction")))
+                .findFirst()
+                .map(item -> String.valueOf(item.get("category_l1")))
+                .orElse("暂无明显拖累品类");
+        return String.format("GMV 本期%s %.2f；指标桥接优先关注%s，品类贡献优先关注%s，退款金额/跌幅比约 %.2f。",
+                direction,
+                Math.abs(totalDelta),
+                topMetric,
+                topCategory,
+                numberValue(refundBridge.get("refund_to_drop_ratio")));
+    }
+
+    private List<Map<String, Object>> buildImpactDrivers(Map<String, Object> metricBridge,
+                                                         List<Map<String, Object>> productSellerDrilldown,
+                                                         List<Map<String, Object>> businessEvidence,
+                                                         List<RootCauseAnalysisResult.Section> sections) {
+        List<Map<String, Object>> drivers = new ArrayList<>();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> components = metricBridge.get("components") instanceof List<?> list
+                ? (List<Map<String, Object>>) list
+                : List.of();
+        for (Map<String, Object> component : components) {
+            double impact = numberValue(component.get("estimated_gmv_impact"));
+            if (impact < 0) {
+                drivers.add(driver(
+                        "metric_bridge",
+                        String.valueOf(component.get("key")),
+                        String.valueOf(component.get("title")),
+                        impact,
+                        numberValue(component.get("contribution_rate")),
+                        String.valueOf(component.get("interpretation")),
+                        "business_analysis"
+                ));
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categoryContribution = metricBridge.get("category_contribution") instanceof List<?> list
+                ? (List<Map<String, Object>>) list
+                : List.of();
+        for (Map<String, Object> category : categoryContribution.stream().filter(row -> numberValue(row.get("gmv_delta")) < 0).limit(3).toList()) {
+            drivers.add(driver(
+                    "category",
+                    String.valueOf(category.get("category_l1")),
+                    "品类拖累：" + category.get("category_l1"),
+                    numberValue(category.get("gmv_delta")),
+                    numberValue(category.get("contribution_rate")),
+                    "该品类 GMV 环比下降，应继续下钻商品、商家、价格带和库存。",
+                    "category_operation"
+            ));
+        }
+
+        for (Map<String, Object> row : productSellerDrilldown.stream().filter(item -> numberValue(item.get("gmv_delta")) < 0).limit(5).toList()) {
+            drivers.add(driver(
+                    "product_seller",
+                    row.getOrDefault("product_id", "-") + "/" + row.getOrDefault("seller_id", "-"),
+                    row.getOrDefault("category_l1", "未知品类") + " 商品/商家下钻",
+                    numberValue(row.get("gmv_delta")),
+                    contributionRate(numberValue(row.get("gmv_delta")), numberValue(metricBridge.get("total_delta"))),
+                    "具体商品或商家成为拖累对象，适合直接分发给类目/商家运营核查。",
+                    "category_operation"
+            ));
+        }
+
+        for (Map<String, Object> row : businessEvidence.stream().limit(5).toList()) {
+            double impact = numberValue(value(row, "IMPACT_AMOUNT"));
+            drivers.add(driver(
+                    "business_evidence",
+                    String.valueOf(value(row, "EVIDENCE_DOMAIN")),
+                    businessDomainName(String.valueOf(value(row, "EVIDENCE_DOMAIN"))) + "：" + value(row, "EVIDENCE_SIGNAL"),
+                    impact,
+                    contributionRate(impact, numberValue(metricBridge.get("total_delta"))),
+                    "业务证据已落到商品、商家、库存、活动或售后对象。",
+                    ownerKeyForEvidence(row)
+            ));
+        }
+
+        for (RootCauseAnalysisResult.Section section : sections) {
+            if ("funnel".equals(section.key()) && "signal".equals(section.status())) {
+                drivers.add(driver("funnel", "view_to_pay", "漏斗转化变化", 0D, 0D, section.summary(), "conversion_operation"));
+            }
+            if ("refund".equals(section.key()) && "signal".equals(section.status())) {
+                drivers.add(driver("refund", String.valueOf(section.highlights().getOrDefault("category", "-")), "退款压力", -numberValue(section.highlights().get("refund_amount")), 0D, section.summary(), "after_sales_governance"));
+            }
+        }
+
+        drivers.sort((left, right) -> Double.compare(numberValue(right.get("score")), numberValue(left.get("score"))));
+        List<Map<String, Object>> ranked = new ArrayList<>();
+        for (int index = 0; index < drivers.size(); index++) {
+            Map<String, Object> item = new LinkedHashMap<>(drivers.get(index));
+            item.put("rank", index + 1);
+            ranked.add(item);
+        }
+        return ranked;
+    }
+
+    private Map<String, Object> driver(String type,
+                                       String key,
+                                       String title,
+                                       double impactAmount,
+                                       double contributionRate,
+                                       String evidence,
+                                       String ownerKey) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("type", type);
+        item.put("key", key);
+        item.put("title", title);
+        item.put("impact_amount", impactAmount);
+        item.put("contribution_rate", contributionRate);
+        item.put("direction", impactAmount < 0 ? "drag" : impactAmount > 0 ? "offset" : "signal");
+        item.put("score", Math.abs(impactAmount) * (impactAmount < 0 ? 1.2 : 0.6) + Math.abs(contributionRate) * 1000);
+        item.put("evidence", evidence);
+        item.put("owner_key", ownerKey);
+        item.put("owner_contact", ownerContactFor(ownerKey));
+        return item;
+    }
+
+    private List<Map<String, Object>> buildVerificationPlan(List<Map<String, Object>> impactDrivers,
+                                                            List<Map<String, Object>> actionRouting) {
+        List<Map<String, Object>> plan = new ArrayList<>();
+        for (Map<String, Object> driver : impactDrivers.stream().limit(5).toList()) {
+            String ownerKey = String.valueOf(driver.getOrDefault("owner_key", "business_analysis"));
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("driver_rank", driver.get("rank"));
+            item.put("driver_title", driver.get("title"));
+            item.put("owner_key", ownerKey);
+            item.put("owner_contact", ownerContactFor(ownerKey));
+            item.put("question_to_verify", verificationQuestionFor(driver));
+            item.put("data_to_pull", verificationDataFor(ownerKey));
+            item.put("decision_rule", verificationDecisionRuleFor(driver));
+            item.put("suggested_route", actionRouting.stream()
+                    .filter(route -> ownerKey.equals(route.get("owner_key")))
+                    .findFirst()
+                    .orElse(Map.of("owner_key", ownerKey, "owner_name", ownerKey)));
+            plan.add(item);
+        }
+        return plan;
+    }
+
+    private String verificationQuestionFor(Map<String, Object> driver) {
+        return switch (String.valueOf(driver.get("type"))) {
+            case "metric_bridge" -> "这个指标桥接项是否能解释 GMV 主跌幅，是否存在订单状态或统计口径变化？";
+            case "category" -> "该品类下跌是否集中在少数商品/商家/价格带，还是全品类同步回落？";
+            case "product_seller" -> "该商品/商家的库存、价格、活动资源、履约和售后是否在异常日发生变化？";
+            case "business_evidence" -> "业务证据对应的活动、库存、履约或售后事件是否真实发生，并覆盖异常时间窗？";
+            case "funnel" -> "浏览、下单、支付三段漏斗中具体是哪一段承接变弱？";
+            case "refund" -> "退款是否来自商品质量、物流履约或客服处理集中爆发？";
+            default -> "该线索是否能被明细数据复核？";
+        };
+    }
+
+    private List<String> verificationDataFor(String ownerKey) {
+        return switch (ownerKey) {
+            case "business_analysis" -> List.of("订单明细", "支付状态", "退款后口径", "近 7 日和上周同日基线");
+            case "category_operation" -> List.of("品类-商品-商家 GMV 明细", "库存", "价格", "活动资源位", "竞品价格");
+            case "conversion_operation" -> List.of("曝光/浏览", "加购/下单", "支付成功率", "页面和券链路日志");
+            case "after_sales_governance" -> List.of("退款原因", "物流履约", "客服工单", "商品质量反馈");
+            case "growth_operation" -> List.of("渠道流量", "投放预算", "素材", "活动曝光", "人群包");
+            default -> List.of("指标明细", "业务事件", "数据口径说明");
+        };
+    }
+
+    private String verificationDecisionRuleFor(Map<String, Object> driver) {
+        double contributionRate = numberValue(driver.get("contribution_rate"));
+        if (contributionRate >= 0.5) {
+            return "若复核后贡献率仍超过 50%，作为主因进入 P0 处理。";
+        }
+        if (contributionRate >= 0.2) {
+            return "若复核后贡献率超过 20%，作为重要次因同步对应负责人。";
+        }
+        return "若明细无法复现，则降级为观察线索，不进入通知主文案。";
+    }
+
+    private String ownerKeyForEvidence(Map<String, Object> row) {
+        String owner = String.valueOf(value(row, "SUGGESTED_OWNER"));
+        if (owner.contains("售后") || owner.contains("治理")) {
+            return "after_sales_governance";
+        }
+        if (owner.contains("增长") || owner.contains("营销")) {
+            return "growth_operation";
+        }
+        if (owner.contains("转化")) {
+            return "conversion_operation";
+        }
+        if (owner.contains("类目") || owner.contains("商家")) {
+            return "category_operation";
+        }
+        return "business_analysis";
+    }
+
+    private double contributionRate(double impactAmount, double totalDelta) {
+        if (totalDelta == 0) {
+            return 0D;
+        }
+        if (impactAmount < 0 && totalDelta < 0) {
+            return Math.abs(impactAmount) / Math.abs(totalDelta);
+        }
+        if (impactAmount > 0 && totalDelta < 0) {
+            return -impactAmount / Math.abs(totalDelta);
+        }
+        return impactAmount / totalDelta;
     }
 
     private Map<String, Object> buildEvidenceConfidence(List<RootCauseAnalysisResult.Section> sections,
@@ -482,6 +926,7 @@ public class RootCauseAnalysisBuilder {
     private String removeLineageSentence(String summary) {
         return summary
                 .replaceAll("当前区域/订单/品类判断分别使用[^。]*。", "")
+                .replaceAll("区域、订单、品类判断[^。]*。", "")
                 .replace("用户/漏斗/退款仍沿主链数据。", "")
                 .trim();
     }
@@ -1120,6 +1565,17 @@ public class RootCauseAnalysisBuilder {
 
     private String formatDecimal(double value, int scale) {
         return String.format("%." + scale + "f", value);
+    }
+
+    private String lineageSentence(String regionDataSource, String orderDataSource, String categoryDataSource) {
+        String regionSource = describeDataSource(regionDataSource);
+        String orderSource = describeDataSource(orderDataSource);
+        String categorySource = describeDataSource(categoryDataSource);
+        if (regionSource.equals(orderSource) && orderSource.equals(categorySource)) {
+            return "区域、订单、品类判断均使用" + regionSource + "；用户、漏斗、退款和业务补齐证据沿主链数据。";
+        }
+        return String.format("区域、订单、品类判断分别使用%s、%s、%s；用户、漏斗、退款和业务补齐证据沿主链数据。",
+                regionSource, orderSource, categorySource);
     }
 
     private String describeDataSource(String dataSource) {

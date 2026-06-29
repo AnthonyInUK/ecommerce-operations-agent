@@ -87,9 +87,17 @@ public class VectorStoreExperienceAutoConfiguration {
             log.info("VectorStoreExperienceAutoConfiguration#vectorStoreExperienceProvider - reason=已注册增量索引监听");
         }
 
-        // 启动时全量索引已有经验
-        provider.indexAll();
-        log.info("VectorStoreExperienceAutoConfiguration#vectorStoreExperienceProvider - reason=VectorStoreExperienceProvider 创建完成");
+        // 异步全量索引：已有数据（如 PgVectorStore 重启后）直接跳过，避免重复调 embedding API
+        Thread indexThread = new Thread(() -> {
+            if (provider.isIndexed()) {
+                log.info("VectorStoreExperienceAutoConfiguration - reason=向量库已有数据，跳过全量索引");
+            } else {
+                provider.indexAll();
+            }
+        }, "experience-index-init");
+        indexThread.setDaemon(true);
+        indexThread.start();
+        log.info("VectorStoreExperienceAutoConfiguration#vectorStoreExperienceProvider - reason=VectorStoreExperienceProvider 创建完成，全量索引异步进行中");
 
         return provider;
     }

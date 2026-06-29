@@ -1,0 +1,29 @@
+# Domain + HTTPS reverse proxy for compliance.anthonyai.cn.
+#
+# Usage:
+#   docker compose \
+#     --env-file .env.tencent \
+#     -f deploy/docker-compose.yml \
+#     -f deploy/docker-compose.standalone.yml \
+#     -f deploy/docker-compose.tencentcloud.yml \
+#     -f deploy/docker-compose.domain.yml \
+#     up -d --build
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      assistant-agent:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.compliance:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

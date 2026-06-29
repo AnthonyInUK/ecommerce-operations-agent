@@ -1,0 +1,44 @@
+# Tencent Cloud CVM deployment override for the ecommerce operations anomaly Agent.
+#
+# Usage from project root:
+#   docker compose \
+#     --env-file .env.tencent \
+#     -f deploy/docker-compose.yml \
+#     -f deploy/docker-compose.standalone.yml \
+#     -f deploy/docker-compose.tencentcloud.yml \
+#     up -d --build
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  assistant-agent:
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_AI_DASHSCOPE_ENABLED: ${SPRING_AI_DASHSCOPE_ENABLED:-false}
+
+      # Tencent Cloud demo deployment defaults to the built-in demo warehouse.
+      # Turn these on only after mounting a complete Olist CSV dataset.
+      APP_BOOTSTRAP_OLIST_RAW_SCHEMA: ${APP_BOOTSTRAP_OLIST_RAW_SCHEMA:-false}
+      APP_BOOTSTRAP_OLIST_ANALYTICS: ${APP_BOOTSTRAP_OLIST_ANALYTICS:-false}
+      APP_PREFER_OLIST_ANALYTICS: ${APP_PREFER_OLIST_ANALYTICS:-false}
+
+      APP_OPERATIONS_GMV_DROP_WATCH_ENABLED: ${APP_OPERATIONS_GMV_DROP_WATCH_ENABLED:-false}
+      APP_OPERATIONS_DAILY_REPORT_ENABLED: ${APP_OPERATIONS_DAILY_REPORT_ENABLED:-false}
+
+volumes:
+  redis-data:

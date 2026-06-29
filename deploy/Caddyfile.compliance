@@ -1,0 +1,11 @@
+compliance.anthonyai.cn {
+    encode gzip zstd
+
+    reverse_proxy assistant-agent:18080
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}

@@ -674,3 +674,12 @@ body {
     min-height: auto;
   }
 }
+
+.agent-answer-md p { margin: 4px 0 8px; }
+.agent-answer-md h2, .agent-answer-md h3 { margin: 12px 0 6px; font-weight: 600; }
+.agent-answer-md ul, .agent-answer-md ol { padding-left: 20px; margin: 4px 0 8px; }
+.agent-answer-md li { margin: 2px 0; }
+.agent-answer-md table { border-collapse: collapse; margin: 8px 0; width: 100%; }
+.agent-answer-md th, .agent-answer-md td { border: 1px solid #d9d9d9; padding: 4px 10px; text-align: left; }
+.agent-answer-md th { background: #fafafa; font-weight: 600; }
+.agent-answer-md strong { font-weight: 600; }

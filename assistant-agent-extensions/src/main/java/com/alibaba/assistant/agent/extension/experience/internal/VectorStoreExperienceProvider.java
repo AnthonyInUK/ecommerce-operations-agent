@@ -63,6 +63,21 @@ public class VectorStoreExperienceProvider implements ExperienceProvider {
     }
 
     /**
+     * 探针查询：向量库是否已有数据（用于跳过重复全量索引）。
+     * PgVectorStore 重启后数据仍在，SimpleVectorStore 重启后为空。
+     */
+    public boolean isIndexed() {
+        try {
+            List<Document> probe = vectorStore.similaritySearch(
+                    SearchRequest.builder().query("运营").topK(1).build());
+            return !probe.isEmpty();
+        } catch (Exception e) {
+            log.warn("VectorStoreExperienceProvider#isIndexed - reason=探针查询失败，默认重建索引, error={}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * 在应用启动后调用，将仓库中所有已有经验写入向量索引。
      */
     public void indexAll() {

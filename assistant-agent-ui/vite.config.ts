@@ -10,7 +10,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://localhost:18080"
+      // 本地后端端口可用 VITE_API_TARGET 覆盖（local profile 跑在 8080）
+      "/api": process.env.VITE_API_TARGET || "http://localhost:18080"
     }
   }
 });

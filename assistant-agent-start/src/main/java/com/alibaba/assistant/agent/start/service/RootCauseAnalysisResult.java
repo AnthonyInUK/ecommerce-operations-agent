@@ -41,6 +41,9 @@ public class RootCauseAnalysisResult {
 
     private final String summary;
     private final Map<String, Object> overview;
+    private final Map<String, Object> metricBridge;
+    private final List<Map<String, Object>> impactDrivers;
+    private final List<Map<String, Object>> verificationPlan;
     private final List<Section> sections;
     private final List<Map<String, Object>> decisionTrace;
     private final List<Map<String, Object>> actionRouting;
@@ -52,6 +55,9 @@ public class RootCauseAnalysisResult {
 
     public RootCauseAnalysisResult(String summary,
                                    Map<String, Object> overview,
+                                   Map<String, Object> metricBridge,
+                                   List<Map<String, Object>> impactDrivers,
+                                   List<Map<String, Object>> verificationPlan,
                                    List<Section> sections,
                                    List<Map<String, Object>> decisionTrace,
                                    List<Map<String, Object>> actionRouting,
@@ -62,6 +68,9 @@ public class RootCauseAnalysisResult {
                                    Map<String, Object> facts) {
         this.summary = summary;
         this.overview = overview;
+        this.metricBridge = metricBridge;
+        this.impactDrivers = impactDrivers;
+        this.verificationPlan = verificationPlan;
         this.sections = sections;
         this.decisionTrace = decisionTrace;
         this.actionRouting = actionRouting;
@@ -84,6 +93,9 @@ public class RootCauseAnalysisResult {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("summary", summary);
         payload.put("overview", overview);
+        payload.put("metric_bridge", metricBridge);
+        payload.put("impact_drivers", impactDrivers);
+        payload.put("verification_plan", verificationPlan);
         payload.put("sections", sections.stream().map(Section::toMap).toList());
         payload.put("decision_trace", decisionTrace);
         payload.put("action_routing", actionRouting);

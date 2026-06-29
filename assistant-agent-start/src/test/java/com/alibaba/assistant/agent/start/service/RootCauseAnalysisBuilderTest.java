@@ -4,6 +4,7 @@ import com.alibaba.assistant.agent.start.config.AppOperationsProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -139,5 +140,89 @@ class RootCauseAnalysisBuilderTest {
         // 没有对冲
         double offset = ((Number) section.highlights().get("offset_gmv")).doubleValue();
         assertEquals(0.0, offset, 0.01);
+    }
+
+    @Test
+    void full_root_cause_result_should_include_metric_bridge_and_ranked_drivers() {
+        RootCauseAnalysisResult result = builder.build(
+                "华东",
+                LocalDate.parse("2018-08-29"),
+                LocalDate.parse("2018-08-28"),
+                Map.of("data_source", "olist_public_dataset", "rows", List.of(Map.of("GMV", 780.0))),
+                Map.of("data_source", "olist_public_dataset", "rows", List.of(Map.of("GMV", 1000.0))),
+                Map.of("data_source", "olist_public_dataset", "rows", List.of(Map.of("ORDER_COUNT", 80.0, "AVG_ORDER_VALUE", 9.75))),
+                Map.of("data_source", "olist_public_dataset", "rows", List.of(Map.of("ORDER_COUNT", 100.0, "AVG_ORDER_VALUE", 10.0))),
+                Map.of("data_source", "demo_seed", "rows", List.of(Map.of("DAU", 900.0, "ACTIVE_BUYER_COUNT", 80.0))),
+                Map.of("data_source", "demo_seed", "rows", List.of(Map.of("DAU", 1000.0, "ACTIVE_BUYER_COUNT", 100.0))),
+                Map.of("data_source", "olist_public_dataset", "rows", List.of(
+                        Map.of("CATEGORY_L1", "家电", "GMV", 430.0),
+                        Map.of("CATEGORY_L1", "服装", "GMV", 350.0)
+                )),
+                Map.of("data_source", "olist_public_dataset", "rows", List.of(
+                        Map.of("CATEGORY_L1", "家电", "GMV", 650.0),
+                        Map.of("CATEGORY_L1", "服装", "GMV", 350.0)
+                )),
+                Map.of("rows", List.of(Map.of("VIEW_TO_PAY_RATE", 0.08, "source_tag", "demo_seed"))),
+                Map.of("rows", List.of(Map.of("VIEW_TO_PAY_RATE", 0.10, "source_tag", "demo_seed"))),
+                Map.of("rows", List.of(Map.of("CATEGORY_L1", "家电", "REFUND_AMOUNT", 60.0, "REFUND_AMOUNT_RATE", 0.08, "source_tag", "demo_seed"))),
+                List.of(Map.of("category_l1", "家电", "product_id", "p1", "seller_id", "s1", "gmv_delta", -120.0)),
+                List.of(Map.of(
+                        "EVIDENCE_DOMAIN", "inventory_fulfillment",
+                        "PRODUCT_NAME", "热水壶",
+                        "SELLER_NAME", "商家A",
+                        "EVIDENCE_SIGNAL", "库存可售天数下降",
+                        "PREVIOUS_METRIC", 12,
+                        "CURRENT_METRIC", 2,
+                        "IMPACT_AMOUNT", -90.0,
+                        "SUGGESTED_OWNER", "类目运营"
+                ))
+        );
+
+        Map<String, Object> payload = result.toMap();
+        assertTrue(payload.containsKey("metric_bridge"));
+        assertTrue(payload.containsKey("impact_drivers"));
+        assertTrue(payload.containsKey("verification_plan"));
+
+        Map<String, Object> metricBridge = (Map<String, Object>) payload.get("metric_bridge");
+        assertEquals("GMV = paid_order_count * average_order_value", metricBridge.get("equation"));
+        List<Map<String, Object>> impactDrivers = (List<Map<String, Object>>) payload.get("impact_drivers");
+        assertFalse(impactDrivers.isEmpty());
+        assertEquals(1, impactDrivers.get(0).get("rank"));
+
+        List<Map<String, Object>> verificationPlan = (List<Map<String, Object>>) payload.get("verification_plan");
+        assertFalse(verificationPlan.isEmpty());
+        assertNotNull(verificationPlan.get(0).get("question_to_verify"));
+    }
+
+    @Test
+    void missing_region_rows_should_fallback_to_order_gmv() {
+        RootCauseAnalysisResult result = builder.build(
+                "华东",
+                LocalDate.parse("2018-08-29"),
+                LocalDate.parse("2018-08-28"),
+                Map.of("data_source", "demo_seed", "rows", List.of()),
+                Map.of("data_source", "demo_seed", "rows", List.of()),
+                Map.of("data_source", "demo_seed", "rows", List.of(Map.of("ORDER_COUNT", 4.0, "PAID_ORDER_COUNT", 4.0, "GROSS_PAY_AMOUNT", 1870.87, "AVG_ORDER_VALUE", 467.7175, "SOURCE_TAG", "demo_seed"))),
+                Map.of("data_source", "demo_seed", "rows", List.of(Map.of("ORDER_COUNT", 5.0, "PAID_ORDER_COUNT", 5.0, "GROSS_PAY_AMOUNT", 4361.3, "AVG_ORDER_VALUE", 872.26, "SOURCE_TAG", "demo_seed"))),
+                Map.of("data_source", "demo_seed", "rows", List.of(Map.of("DAU", 8.0, "ACTIVE_BUYER_COUNT", 4.0))),
+                Map.of("data_source", "demo_seed", "rows", List.of(Map.of("DAU", 10.0, "ACTIVE_BUYER_COUNT", 5.0))),
+                Map.of("data_source", "demo_seed", "rows", List.of(Map.of("CATEGORY_L1", "家电", "GMV", 400.0))),
+                Map.of("data_source", "demo_seed", "rows", List.of(Map.of("CATEGORY_L1", "家电", "GMV", 2200.0))),
+                Map.of("rows", List.of()),
+                Map.of("rows", List.of()),
+                Map.of("rows", List.of()),
+                List.of(),
+                List.of()
+        );
+
+        Map<String, Object> payload = result.toMap();
+        Map<String, Object> overview = (Map<String, Object>) payload.get("overview");
+        assertEquals(4361.3, ((Number) overview.get("previous_gmv")).doubleValue(), 0.01);
+        assertEquals(1870.87, ((Number) overview.get("current_gmv")).doubleValue(), 0.01);
+        assertFalse(result.summary().contains("null"));
+
+        Map<String, Object> facts = result.facts();
+        List<Map<String, Object>> currentRegion = (List<Map<String, Object>>) facts.get("current_region");
+        assertEquals("order_structure", currentRegion.get(0).get("region_fallback_source"));
     }
 }

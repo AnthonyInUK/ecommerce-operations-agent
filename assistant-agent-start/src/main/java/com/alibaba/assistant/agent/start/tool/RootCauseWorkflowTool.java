@@ -58,6 +58,9 @@ public class RootCauseWorkflowTool extends AbstractWarehouseQueryCodeactTool {
         result.put("answer", answer.get("answer"));
         result.put("root_cause", rootCause);
         result.put("action_routing", rootCause.getOrDefault("action_routing", List.of()));
+        result.put("metric_bridge", rootCause.getOrDefault("metric_bridge", Map.of()));
+        result.put("impact_drivers", rootCause.getOrDefault("impact_drivers", List.of()));
+        result.put("verification_plan", rootCause.getOrDefault("verification_plan", List.of()));
         result.put("notification_draft", rootCause.getOrDefault("notification_draft", Map.of()));
         result.put("product_seller_drilldown", rootCause.getOrDefault("product_seller_drilldown", List.of()));
         result.put("evidence_confidence", rootCause.getOrDefault("evidence_confidence", Map.of()));

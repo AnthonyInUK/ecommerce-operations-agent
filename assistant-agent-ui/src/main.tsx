@@ -1,5 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Alert,
   App as AntApp,
@@ -469,7 +471,13 @@ function App() {
                       type={agentResult.success === false ? "error" : "info"}
                       showIcon
                       message={headline(agentResult, agentRootCause)}
-                      description={agentRootCause?.summary || agentResult?.answer || "这块只展示你手动输入问题的临时分析，不会覆盖当前异常详情。"}
+                      description={
+                        <div className="agent-answer-md">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {agentRootCause?.summary || agentResult?.answer || "这块只展示你手动输入问题的临时分析，不会覆盖当前异常详情。"}
+                          </ReactMarkdown>
+                        </div>
+                      }
                     />
                   </Card>
                 )}

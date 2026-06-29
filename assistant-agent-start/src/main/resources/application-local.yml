@@ -1,0 +1,48 @@
+# ============================================================================
+# 本地开发 profile（学习/调试用）
+# 启动：mvn spring-boot:run -pl assistant-agent-start -Dspring-boot.run.profiles=local
+# 只需要环境变量 DEEPSEEK_API_KEY（其余全部用本地安全默认值，不依赖 .env 的容器路径）
+# ============================================================================
+spring:
+  application:
+    name: assistant-agent-local
+  ai:
+    model:
+      chat: openai          # 用 OpenAI 兼容接口连 DeepSeek（只创建一个 ChatModel，不冲突）
+    dashscope:
+      enabled: false        # 关掉 DashScope，避免双 ChatModel bean
+    openai:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      chat:
+        options:
+          model: ${MODEL_NAME:deepseek-chat}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+app:
+  deployment:
+    env: local
+  validation:
+    strict-startup: false                 # 校验失败只告警，不中断启动
+  datasource:
+    enabled: true
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:assistant_agent;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false   # 内存库，每次重启全新
+    username: sa
+    password:
+    bootstrap-demo-data: true             # 加载小型 demo 数据（女装/家电/美妆那批）
+    # Olist 真实数据集（巴西电商，2016-2018，10万+订单）。
+    # 默认开启；CSV 目录用 OLIST_CSV_DIR 覆盖，默认相对 assistant-agent-start 模块的 ../data/olist-csv。
+    # 不想加载（启动更快）时设 OLIST_CSV_DIR= 空 或把下面三个开关临时改回 false。
+    bootstrap-olist-raw-schema: ${APP_BOOTSTRAP_OLIST_RAW_SCHEMA:true}
+    olist-raw-import-dir: ${OLIST_CSV_DIR:../data/olist-csv}
+    bootstrap-olist-analytics: ${APP_BOOTSTRAP_OLIST_ANALYTICS:true}
+    prefer-olist-analytics: ${APP_PREFER_OLIST_ANALYTICS:true}

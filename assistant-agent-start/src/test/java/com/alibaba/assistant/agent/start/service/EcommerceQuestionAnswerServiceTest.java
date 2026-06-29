@@ -94,6 +94,26 @@ class EcommerceQuestionAnswerServiceTest {
     }
 
     @Test
+    void businessRelatedFreeQuestion_shouldUseGeneralBusinessRoute() {
+        Map<String, Object> result = service.answer("s-business-free", "华东广告投放和运营处理应该先看什么？");
+
+        assertEquals(true, result.get("success"));
+        assertEquals("business_general", result.get("intent_route"));
+        assertEquals("deep", result.get("path_type"));
+        assertNotNull(result.get("root_cause"));
+    }
+
+    @Test
+    void refundBreakdownQuestion_shouldUseRefundAnalysisTool() {
+        Map<String, Object> result = service.answer("s-refund-breakdown", "查一下退款主要集中在哪些品类？");
+
+        assertEquals(true, result.get("success"));
+        assertEquals("fast", result.get("path_type"));
+        assertEquals(List.of("RefundAnalysisTool"), result.get("tool_chain"));
+        assertTrue(String.valueOf(result.get("answer")).contains("退款主要集中"));
+    }
+
+    @Test
     void clarification_ambiguousQuestion() {
         Map<String, Object> result = service.answer("s-clarify", "活跃用户怎么样？");
 
