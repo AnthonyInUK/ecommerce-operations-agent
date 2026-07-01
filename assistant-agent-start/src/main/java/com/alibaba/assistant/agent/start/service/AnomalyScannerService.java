@@ -42,20 +42,70 @@ public class AnomalyScannerService {
      * 扫描所有快照表，返回异常列表（字段结构与原 anomaly() 方法一致）。
      * 如果快照表无数据或查询异常，返回空列表——调用方自行决定是否兜底到硬编码。
      */
+    // 真实 GMV 单日基数下限：低于此值视为数据集边缘/稀疏日，环比跌幅是噪声，不作为异常。
+    private static final double GMV_BASE_FLOOR = 1000.0;
+
     public List<Map<String, Object>> scan() {
         List<Map<String, Object>> results = new ArrayList<>();
+
+        // 精选异常：人工验证过数据丰富、点击后能完整点亮结构化分析（区域/订单/品类信号 + 责任分发）。
+        // 放在最前，保证演示时异常中心一定有可点、可归因的高质量样本。
+        results.addAll(featuredAnomalies());
 
         results.addAll(scanOlistCore());
         results.addAll(scanOlistRegion());
         results.addAll(scanOlistCategory());
         results.addAll(scanDemoRefundRate());
 
+        // 过滤数据集边缘/稀疏日的噪声异常（GMV 基数过小，环比跌幅无意义）。
+        results.removeIf(this::isSparseGmvNoise);
+
+        // 按 id 去重（精选优先，扫描到的同 id 丢弃）。
+        Map<String, Map<String, Object>> byId = new LinkedHashMap<>();
+        for (Map<String, Object> item : results) {
+            byId.putIfAbsent(String.valueOf(item.get("id")), item);
+        }
+        List<Map<String, Object>> deduped = new ArrayList<>(byId.values());
+
         // 按跌幅绝对值降序（最严重的在前）
-        results.sort(Comparator.comparingDouble(
+        deduped.sort(Comparator.comparingDouble(
                 m -> Math.abs(toDouble(((Map<?, ?>) m).get("delta_rate")))
         ).reversed());
 
-        return results.size() > MAX_ANOMALIES ? results.subList(0, MAX_ANOMALIES) : results;
+        return deduped.size() > MAX_ANOMALIES ? deduped.subList(0, MAX_ANOMALIES) : deduped;
+    }
+
+    /**
+     * 人工精选的高质量异常样本（验证过结构化分析丰富）。currentValue/previousValue 取自 Olist 真实快照。
+     */
+    private List<Map<String, Object>> featuredAnomalies() {
+        List<Map<String, Object>> featured = new ArrayList<>();
+        // 黑五次日：华东 GMV 从大促峰值大幅回落（大数字 + 强信号，演示首选）
+        featured.add(buildAnomaly(
+                anomalyId("2017-11-25", "华东", "gmv"),
+                "2017-11-25", "gmv", "GMV", "区域", "华东",
+                48417.08, 123740.62,
+                "Olist 公开数据", "平台运营",
+                "2017-11-25 华东 GMV 为什么跌了？"));
+        // 月中真实异常：华东 GMV 回落，家居品类主拖累
+        featured.add(buildAnomaly(
+                anomalyId("2018-05-17", "华东", "gmv"),
+                "2018-05-17", "gmv", "GMV", "区域", "华东",
+                25897.48, 46297.31,
+                "Olist 公开数据", "平台运营",
+                "2018-05-17 华东 GMV 为什么跌了？"));
+        return featured;
+    }
+
+    /** GMV/订单类异常若当前与前一日基数都低于下限，视为边缘稀疏日噪声。 */
+    private boolean isSparseGmvNoise(Map<String, Object> item) {
+        String metricId = String.valueOf(item.get("metric_id"));
+        if (!metricId.contains("gmv") && !"order_count".equals(metricId)) {
+            return false;
+        }
+        double cur  = toDouble(item.get("current_value"));
+        double prev = toDouble(item.get("previous_value"));
+        return cur < GMV_BASE_FLOOR || prev < GMV_BASE_FLOOR;
     }
 
     // ── 全站核心指标（GMV + 订单量）────────────────────────────────────

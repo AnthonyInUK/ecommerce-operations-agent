@@ -22,8 +22,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // 本地后端端口可用 VITE_API_TARGET 覆盖（local profile 跑在 8080）
-      "/api": process.env.VITE_API_TARGET || "http://localhost:18080"
+      // 默认指向本地 dev 后端(local profile = 8080)；docker(18080)等场景用 VITE_API_TARGET 覆盖
+      "/api": process.env.VITE_API_TARGET || "http://localhost:8080"
     }
   }
 });

@@ -608,18 +608,13 @@ function App() {
                   />
                 )}
 
+                {/* Olist 无用户行为/漏斗维度，已移除"用户规模""漏斗转化"两张恒空卡片；品类拖累见下方图表。 */}
                 <Row gutter={[16, 16]} className="metric-row">
-                  <Col xs={24} md={12} xl={6}>
+                  <Col xs={24} md={12}>
                     <MetricCard title="GMV 变化" value={metricValue(readNumber(previousRegion, "gmv"), readNumber(currentRegion, "gmv"))} detail={`区域 GMV ${deltaText(readNumber(previousRegion, "gmv"), readNumber(currentRegion, "gmv"))}`} />
                   </Col>
-                  <Col xs={24} md={12} xl={6}>
+                  <Col xs={24} md={12}>
                     <MetricCard title="订单结构" value={metricValue(readNumber(previousOrder, "order_count"), readNumber(currentOrder, "order_count"))} detail={`客单价 ${metricValue(readNumber(previousOrder, "avg_order_value"), readNumber(currentOrder, "avg_order_value"))}`} />
-                  </Col>
-                  <Col xs={24} md={12} xl={6}>
-                    <MetricCard title="用户规模" value={metricValue(readNumber(previousUser, "dau"), readNumber(currentUser, "dau"))} detail={`活跃买家 ${metricValue(readNumber(previousUser, "active_buyer_count"), readNumber(currentUser, "active_buyer_count"))}`} />
-                  </Col>
-                  <Col xs={24} md={12} xl={6}>
-                    <MetricCard title="漏斗转化" value={metricValue(readNumber(previousFunnel, "view_to_pay_rate"), readNumber(currentFunnel, "view_to_pay_rate"))} detail={topCategoryDelta ? `品类拖累：${topCategoryDelta.category} ${formatNumber(topCategoryDelta.delta)}` : "暂无明确品类拖累"} />
                   </Col>
                 </Row>
 
