@@ -146,14 +146,41 @@ function App() {
 
   React.useEffect(() => {
     fetchJson("/api/ecommerce/runtime").then(setRuntime).catch(() => setRuntime(null));
-    fetchJson("/api/ecommerce/anomalies")
-      .then((payload) => {
-        setAnomalyCenterRows(normalizeAnomalyRows(payload.items || []));
-        setWorkflowByAnomaly((prev) => ({ ...prev, ...collectWorkflowStates(payload.items || []) }));
-        setAnomalyIntegrationStory(payload.integration_story || "");
-      })
-      .catch(() => setAnomalyCenterRows([]));
+
+    // 异常列表：后端慢启动(导入 Olist)时首拉可能空/失败，自动重试直到拿到真实异常，避免卡空状态。
+    let cancelled = false;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 8;
+    const loadAnomalies = () => {
+      fetchJson("/api/ecommerce/anomalies")
+        .then((payload) => {
+          if (cancelled) return;
+          const items = (payload.items || []) as AnyRecord[];
+          setAnomalyCenterRows(normalizeAnomalyRows(items));
+          setWorkflowByAnomaly((prev) => ({ ...prev, ...collectWorkflowStates(items) }));
+          setAnomalyIntegrationStory(payload.integration_story || "");
+          const hasReal = items.some((it) => it.id && it.id !== "no-data-placeholder");
+          if (!hasReal && attempts < MAX_ATTEMPTS) {
+            attempts += 1;
+            setTimeout(loadAnomalies, 2000);
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (attempts < MAX_ATTEMPTS) {
+            attempts += 1;
+            setTimeout(loadAnomalies, 2000);
+          } else {
+            setAnomalyCenterRows([]);
+          }
+        });
+    };
+    loadAnomalies();
+
     form.setFieldsValue({ session_id: "demo-ui-session", question: DEFAULT_QUESTION });
+    return () => {
+      cancelled = true;
+    };
   }, [form]);
 
   const rootCause = resolveRootCause(anomalyResult);
@@ -175,7 +202,7 @@ function App() {
   const previousFunnel = first(facts.previous_funnel);
   const categoryDeltas = resolveCategoryDeltas(facts.current_category_breakdown || facts.current_category_rank, facts.previous_category_breakdown || facts.previous_category_rank);
   const topCategoryDelta = categoryDeltas[0];
-  const anomalyRows = anomalyCenterRows.filter((row) => row.key === "anom-20180829-east-gmv").slice(0, 1);
+  const anomalyRows = anomalyCenterRows;
   const visibleAnomalyRows = applyWorkflowToRows(
     filterAnomalyRowsForRole(anomalyRows, currentRole, workflowByAnomaly),
     workflowByAnomaly
