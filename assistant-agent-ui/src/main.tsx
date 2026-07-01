@@ -40,8 +40,7 @@ import {
   BarChartOutlined,
   BellOutlined,
   CheckCircleOutlined,
-  SendOutlined,
-  ThunderboltOutlined
+  SendOutlined
 } from "@ant-design/icons";
 import "./styles.css";
 
@@ -291,21 +290,6 @@ function App() {
     }
   }
 
-  async function runTrigger() {
-    setMode("trigger");
-    setLoading(true);
-    try {
-      const payload = await fetchJson("/api/ecommerce/triggers/gmv-drop-watch/run-once", { method: "POST" });
-      setAnomalyResult(payload);
-      setActiveAnomalyTitle("2018-05-17 华东 GMV 异常巡检");
-      setLastRunAt(new Date().toLocaleTimeString());
-    } catch (error) {
-      message.error(`巡检失败：${errorMessage(error)}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   const controlPanel = (
     <div className="command-center">
       <Card className="control-card primary-control command-card" bordered={false}>
@@ -325,9 +309,6 @@ function App() {
               <Space direction="vertical" size={12} className="action-bar">
                 <Button type="primary" size="large" icon={<BarChartOutlined />} onClick={runAnswer} loading={loading && mode === "answer"}>
                   运行分析
-                </Button>
-                <Button size="large" icon={<ThunderboltOutlined />} onClick={runTrigger} loading={loading && mode === "trigger"}>
-                  运行 GMV 异常巡检
                 </Button>
               </Space>
             </Col>
